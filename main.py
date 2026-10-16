@@ -103,11 +103,19 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> Optiona
         return None
     return db.query(User).filter(User.username == username).first()
 
-# --- LOGICA CONTROLLO SOVRAPPOSIZIONI ED INVIO NOTIFICHE ---
-def check_operaio_occupato(db: Session, operai_selezionati: list[str], dt_start: datetime, dt_end: datetime, is_nuova_assenza: bool, current_user: User, exclude_event_id: int = None):
+# --- LOGICA CONTROLLO E GESTIONE AUTOMATICA SOVRAPPOSIZIONI E NOTIFICHE ---
+def check_operaio_occupato_automatico(
+    db: Session, 
+    operai_selezionati: list[str], 
+    dt_start: datetime, 
+    dt_end: datetime, 
+    is_nuova_assenza: bool, 
+    current_user: User, 
+    exclude_event_id: int = None
+):
     all_events = db.query(Event).all()
-    blocchi = []
     avvisi = []
+    note_ritardi = []
 
     for ev in all_events:
         if exclude_event_id and ev.id == exclude_event_id:
@@ -119,35 +127,33 @@ def check_operaio_occupato(db: Session, operai_selezionati: list[str], dt_start:
             
             if intersezione:
                 ev_end = ev.end_time if ev.end_time else ev.start_time
-                if max(dt_start, ev.start_time) <= min(dt_end, ev_end):
-                    tip_exist_lower = ev.tipologia.lower()
-                    ev_is_assenza = "assenza" in tip_exist_lower or "ferie" in tip_exist_lower or "malattia" in tip_exist_lower
+                
+                # Controllo sovrapposizione esatta al minuto
+                if max(dt_start, ev.start_time) < min(dt_end, ev_end):
+                    tip_exist_lower = ev.tipologia.lower() if ev.tipologia else ""
+                    ev_is_assenza = any(kw in tip_exist_lower for kw in ["assenza", "ferie", "malattia", "permesso"])
                     
-                    if is_nuova_assenza:
-                        if ev_is_assenza:
-                            blocchi.append(f"I seguenti operai hanno già un'assenza registrata in questo orario: {', '.join(intersezione)}")
-                        else:
-                            resp = ev.owner.username if ev.owner else 'sconosciuto'
-                            msg_avviso = f"⚠️ Assenza registrata da {current_user.username.upper()}! NOTA: {', '.join(intersezione)} era/erano assegnati al cantiere '{ev.title}' (creato da {resp}). La squadra del cantiere va riorganizzata."
-                            avvisi.append(msg_avviso)
-                            
-                            if ev.user_id and ev.user_id != current_user.id:
-                                notif_msg = f"📢 ATTENZIONE: {current_user.username.upper()} ha registrato un'assenza/malattia per {', '.join(intersezione)} in data {dt_start.strftime('%d/%m/%Y %H:%M')}. Era assegnato al tuo cantiere '{ev.title}'!"
-                                db.add(Notification(user_id=ev.user_id, message=notif_msg))
-                                db.commit()
-                    else:
-                        if ev_is_assenza:
-                            blocchi.append(f"Impossibile assegnare: {', '.join(intersezione)} risulta in ASSENZA / FERIE / MALATTIA ('{ev.title}')")
-                        else:
-                            msg_blocco = f"Sovrapposizione cantieri: {', '.join(intersezione)} è già sul cantiere '{ev.title}' nello stesso orario"
-                            blocchi.append(msg_blocco)
-                            
-                            if ev.user_id and ev.user_id != current_user.id:
-                                notif_msg = f"⚠️ SOVRAPPOSIZIONE CANTIERE: {current_user.username.upper()} ha programmato un cantiere con {', '.join(intersezione)} in data {dt_start.strftime('%d/%m/%Y %H:%M')}, operai già presenti sul tuo cantiere '{ev.title}'!"
-                                db.add(Notification(user_id=ev.user_id, message=notif_msg))
-                                db.commit()
+                    orario_liberazione = ev_end.strftime('%H:%M')
+                    data_liberazione = ev_end.strftime('%d/%m/%Y')
+                    op_str = ', '.join(intersezione)
 
-    return blocchi, avvisi
+                    # Creazione automatica della nota di ritardo/disponibilità
+                    msg_ritardo = f"⚠️ {op_str} arriverà più tardi (disponibile dalle {orario_liberazione} del {data_liberazione} dopo '{ev.title}')"
+                    note_ritardi.append(msg_ritardo)
+                    avvisi.append(msg_ritardo)
+
+                    # 1. Notifica automatica al creatore del cantiere corrente (chi inserisce)
+                    notif_creatore = f"📢 Sovrapposizione gestita: {msg_ritardo}"
+                    db.add(Notification(user_id=current_user.id, message=notif_creatore))
+
+                    # 2. Notifica automatica al proprietario dell'altro cantiere coinvolto
+                    if ev.user_id and ev.user_id != current_user.id:
+                        notif_altro = f"📢 ATTENZIONE: {current_user.username.upper()} ha programmato un intervento con {op_str} in sovrapposizione col tuo cantiere '{ev.title}'."
+                        db.add(Notification(user_id=ev.user_id, message=notif_altro))
+                    
+                    db.commit()
+
+    return avvisi, note_ritardi
 
 # --- ROTTE AUTENTICAZIONE ---
 @app.get("/login", response_class=HTMLResponse)
@@ -387,14 +393,18 @@ def add_event(
     warning_msg = None
 
     if operai:
-        blocchi, avvisi = check_operaio_occupato(db, operai, dt_start, dt_end, is_nuova_assenza=is_assenza, current_user=current_user)
-        
-        if blocchi:
-            msg = " | ".join(blocchi)
-            return RedirectResponse(url=f"/?error_msg={urllib.parse.quote(msg)}", status_code=status.HTTP_303_SEE_OTHER)
+        avvisi, note_ritardi = check_operaio_occupato_automatico(
+            db, operai, dt_start, dt_end, 
+            is_nuova_assenza=is_assenza, 
+            current_user=current_user
+        )
         
         if avvisi:
             warning_msg = " | ".join(avvisi)
+
+        if note_ritardi:
+            ritardi_str = "\n".join(note_ritardi)
+            description = f"{description or ''}\n\n--- NOTE DISPONIBILITÀ AUTOMATICHE ---\n{ritardi_str}".strip()
 
     operai_str = ", ".join(operai)
     db_event = Event(
@@ -448,14 +458,19 @@ def edit_event(
     warning_msg = None
 
     if operai:
-        blocchi, avvisi = check_operaio_occupato(db, operai, dt_start, dt_end, is_nuova_assenza=is_assenza, current_user=current_user, exclude_event_id=event_id)
-        
-        if blocchi:
-            msg = " | ".join(blocchi)
-            return RedirectResponse(url=f"/?error_msg={urllib.parse.quote(msg)}", status_code=status.HTTP_303_SEE_OTHER)
+        avvisi, note_ritardi = check_operaio_occupato_automatico(
+            db, operai, dt_start, dt_end, 
+            is_nuova_assenza=is_assenza, 
+            current_user=current_user, 
+            exclude_event_id=event_id
+        )
         
         if avvisi:
             warning_msg = " | ".join(avvisi)
+
+        if note_ritardi:
+            ritardi_str = "\n".join(note_ritardi)
+            description = f"{description or ''}\n\n--- NOTE DISPONIBILITÀ AUTOMATICHE ---\n{ritardi_str}".strip()
 
     event.title = title
     event.tipologia = tipologia
