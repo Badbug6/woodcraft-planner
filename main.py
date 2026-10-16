@@ -75,7 +75,7 @@ def init_db():
             print("⚙️ Database vuoto: creazione utente admin predefinito...")
             default_admin = User(
                 username="admin",
-                password="admin123",  # <-- Password iniziale
+                password="admin123",
                 role="admin",
                 color="#13293d"
             )
@@ -128,7 +128,6 @@ def check_operaio_occupato_automatico(
             if intersezione:
                 ev_end = ev.end_time if ev.end_time else ev.start_time
                 
-                # Controllo sovrapposizione esatta al minuto
                 if max(dt_start, ev.start_time) < min(dt_end, ev_end):
                     tip_exist_lower = ev.tipologia.lower() if ev.tipologia else ""
                     ev_is_assenza = any(kw in tip_exist_lower for kw in ["assenza", "ferie", "malattia", "permesso"])
@@ -137,16 +136,13 @@ def check_operaio_occupato_automatico(
                     data_liberazione = ev_end.strftime('%d/%m/%Y')
                     op_str = ', '.join(intersezione)
 
-                    # Creazione automatica della nota di ritardo/disponibilità
                     msg_ritardo = f"⚠️ {op_str} arriverà più tardi (disponibile dalle {orario_liberazione} del {data_liberazione} dopo '{ev.title}')"
                     note_ritardi.append(msg_ritardo)
                     avvisi.append(msg_ritardo)
 
-                    # 1. Notifica automatica al creatore del cantiere corrente (chi inserisce)
                     notif_creatore = f"📢 Sovrapposizione gestita: {msg_ritardo}"
                     db.add(Notification(user_id=current_user.id, message=notif_creatore))
 
-                    # 2. Notifica automatica al proprietario dell'altro cantiere coinvolto
                     if ev.user_id and ev.user_id != current_user.id:
                         notif_altro = f"📢 ATTENZIONE: {current_user.username.upper()} ha programmato un intervento con {op_str} in sovrapposizione col tuo cantiere '{ev.title}'."
                         db.add(Notification(user_id=ev.user_id, message=notif_altro))
@@ -216,7 +212,7 @@ def index(request: Request, db: Session = Depends(get_db)):
         "notifications": unread_notifications
     })
 
-# --- GESTIONE PROFILO (CAMBIO PASSWORD PERSONALE) ---
+# --- GESTIONE PROFILO ---
 @app.post("/profile/password")
 def change_password(
     request: Request,
@@ -238,7 +234,7 @@ def change_password(
     db.commit()
     return RedirectResponse(url="/?success_msg=Password+aggiornata+con+successo", status_code=status.HTTP_303_SEE_OTHER)
 
-# --- PANNELLO ADMIN: GESTIONE UTENTI & OPERAI ---
+# --- PANNELLO ADMIN: UTENTI & OPERAI ---
 @app.get("/admin/users", response_class=HTMLResponse)
 def admin_users_page(request: Request, db: Session = Depends(get_db)):
     current_user = get_current_user(request, db)
@@ -356,7 +352,7 @@ def delete_operaio(request: Request, operaio_id: int, redirect_to: str = Form("/
         
     return RedirectResponse(url=redirect_to, status_code=status.HTTP_303_SEE_OTHER)
 
-# --- NOTIFICHE (LETTE) ---
+# --- NOTIFICHE ---
 @app.post("/notifications/read/{notif_id}")
 def mark_notification_read(request: Request, notif_id: int, db: Session = Depends(get_db)):
     current_user = get_current_user(request, db)
@@ -501,12 +497,12 @@ def delete_event(request: Request, event_id: int, db: Session = Depends(get_db))
             
     return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
 
-# --- TIPOLOGIE ---
+# --- TIPOLOGIE (AGGIUNTA, MODIFICA, CANCELLAZIONE) ---
 @app.post("/tipologie/add")
 def add_tipologia(request: Request, nome: str = Form(...), db: Session = Depends(get_db)):
     current_user = get_current_user(request, db)
-    if not current_user or current_user.username == 'lena':
-        return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
+    if not current_user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
     
     if nome.strip():
         existing = db.query(Tipologia).filter(Tipologia.nome == nome.strip()).first()
@@ -514,6 +510,32 @@ def add_tipologia(request: Request, nome: str = Form(...), db: Session = Depends
             db.add(Tipologia(nome=nome.strip()))
             db.commit()
             
+    return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/tipologie/edit/{tipologia_id}")
+def edit_tipologia(request: Request, tipologia_id: int, nome: str = Form(...), db: Session = Depends(get_db)):
+    current_user = get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+    
+    tip = db.query(Tipologia).filter(Tipologia.id == tipologia_id).first()
+    if tip and nome.strip():
+        tip.nome = nome.strip()
+        db.commit()
+        
+    return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/tipologie/delete/{tipologia_id}")
+def delete_tipologia(request: Request, tipologia_id: int, db: Session = Depends(get_db)):
+    current_user = get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+    
+    tip = db.query(Tipologia).filter(Tipologia.id == tipologia_id).first()
+    if tip:
+        db.delete(tip)
+        db.commit()
+        
     return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
 
 # --- ESPORTAZIONE PDF ---

@@ -4,451 +4,218 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestione Cantieri & Assenze - Falegnameria</title>
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FullCalendar CSS & JS -->
     <link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css' rel='stylesheet' />
     <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js'></script>
     <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/core/locales/it.global.min.js'></script>
 </head>
 <body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col">
 
-    <!-- HEADER / NAVBAR -->
     <header class="bg-slate-900 text-white shadow-md sticky top-0 z-50">
         <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-4">
             <div>
                 <h1 class="text-xl font-bold tracking-wide">🪵 Falegnameria - Gestione Cantieri</h1>
-                <p class="text-xs text-slate-400">Utente: <span class="font-semibold text-amber-400">{{ current_user.username.upper() }}</span> ({{ current_user.role }})</p>
+                <p class="text-xs text-slate-400">Utente: <span class="font-semibold text-amber-400">{{ current_user.username.upper() }}</span></p>
             </div>
-            
             <div class="flex items-center gap-3 flex-wrap">
-                <!-- Link gestione utenti per Admin -->
                 {% if current_user.role == 'admin' or current_user.username == 'admin' %}
-                <a href="/admin/users" class="bg-slate-800 hover:bg-slate-700 text-white text-sm font-medium px-4 py-2 rounded-lg shadow transition flex items-center gap-2">
-                    👥 Gestisci Utenti & Operai
-                </a>
+                <a href="/admin/users" class="bg-slate-800 hover:bg-slate-700 text-white text-sm font-medium px-4 py-2 rounded-lg shadow transition">👥 Gestisci Utenti & Operai</a>
                 {% endif %}
-
-                <!-- Pulsante Cambio Password Personale -->
-                <button type="button" onclick="document.getElementById('password-modal').classList.remove('hidden')" class="bg-slate-800 hover:bg-slate-700 text-white text-sm font-medium px-4 py-2 rounded-lg shadow transition flex items-center gap-2">
-                    🔑 Cambia Password
-                </button>
-
-                <!-- Pulsante Download PDF Dinamico -->
-                <a id="btn-export-pdf" href="/export/pdf" class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-4 py-2 rounded-lg shadow transition flex items-center gap-2">
-                    📄 Scarica PDF Mese
-                </a>
-                
-                <a href="/logout" class="bg-rose-600 hover:bg-rose-700 text-white text-sm font-medium px-4 py-2 rounded-lg shadow transition">
-                    Esci
-                </a>
+                <button type="button" onclick="document.getElementById('password-modal').classList.add('hidden'); document.getElementById('password-modal').classList.remove('hidden')" class="bg-slate-800 hover:bg-slate-700 text-white text-sm font-medium px-4 py-2 rounded-lg shadow transition">🔑 Cambia Password</button>
+                <a id="btn-export-pdf" href="/export/pdf" class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-4 py-2 rounded-lg shadow transition">📄 Scarica PDF Mese</a>
+                <a href="/logout" class="bg-rose-600 hover:bg-rose-700 text-white text-sm font-medium px-4 py-2 rounded-lg shadow transition">Esci</a>
             </div>
         </div>
     </header>
 
-    <!-- NOTIFICHE PENDENTI SALVATE A DATABASE (PER IL CREATORE DEL CANTIERE) -->
     {% if notifications %}
     <div class="max-w-7xl mx-auto px-4 pt-4 space-y-2">
         {% for n in notifications %}
         <div class="bg-amber-500 text-slate-900 px-4 py-3 rounded-xl shadow-md flex justify-between items-center gap-4 font-medium text-xs md:text-sm border border-amber-600">
-            <div class="flex items-center gap-2">
-                <span class="text-lg">🔔</span>
-                <span>{{ n.message }}</span>
-            </div>
-            <form action="/notifications/read/{{ n.id }}" method="POST">
-                <button type="submit" class="bg-slate-900 hover:bg-slate-800 text-white text-xs px-3 py-1.5 rounded-lg transition shadow shrink-0">
-                    Segna come letto
-                </button>
-            </form>
+            <span>🔔 {{ n.message }}</span>
+            <form action="/notifications/read/{{ n.id }}" method="POST"><button type="submit" class="bg-slate-900 text-white text-xs px-3 py-1.5 rounded-lg">Segna come letto</button></form>
         </div>
         {% endfor %}
     </div>
     {% endif %}
 
-    <!-- ALERT ERRORE (BLOCCO SOVRAPPOSIZIONE) -->
     {% if error_msg %}
-    <div id="error-banner" class="bg-rose-500 text-white px-4 py-3 shadow-lg relative text-center font-medium z-40 flex flex-col md:flex-row justify-center items-center gap-3">
-        <div>
-            <span>⛔ <strong>Blocco Sovrapposizione:</strong> {{ error_msg }}</span>
-            {% if can_force %}
-            <p class="text-yellow-200 text-xs mt-1">💡 Se desideri comunque procedere, spunta la casella "Forza salvataggio" nel form sottostante e clicca di nuovo su Registra.</p>
-            {% endif %}
-        </div>
-        <button onclick="document.getElementById('error-banner').style.display='none'" class="bg-rose-700 px-2.5 py-1 rounded text-xs hover:bg-rose-800 shrink-0">Chiudi</button>
-    </div>
+    <div id="error-banner" class="bg-rose-500 text-white px-4 py-3 text-center font-medium z-40">⛔ <strong>Errore:</strong> {{ error_msg }} <button onclick="this.parentElement.style.display='none'" class="ml-4 bg-rose-700 px-2 py-0.5 rounded text-xs">Chiudi</button></div>
     {% endif %}
 
-    <!-- ALERT WARNING (ESITO REGISTRAZIONE PER CHI COMPILA) -->
     {% if warning_msg %}
-    <div id="warning-banner" class="bg-amber-500 text-slate-900 px-4 py-3 shadow-lg relative text-center font-medium z-40 flex justify-center items-center gap-2">
-        <span>📢 <strong>Notifica Sovrapposizione:</strong> {{ warning_msg }}</span>
-        <button onclick="document.getElementById('warning-banner').style.display='none'" class="ml-4 bg-amber-700 text-white px-2 py-0.5 rounded text-xs hover:bg-amber-800">Ho capito</button>
-    </div>
+    <div id="warning-banner" class="bg-amber-500 text-slate-900 px-4 py-3 text-center font-medium z-40">📢 <strong>Nota:</strong> {{ warning_msg }} <button onclick="this.parentElement.style.display='none'" class="ml-4 bg-amber-700 text-white px-2 py-0.5 rounded text-xs">Ho capito</button></div>
     {% endif %}
 
-    <!-- CONTENUTO PRINCIPALE -->
     <main class="max-w-7xl mx-auto px-4 py-6 flex-grow w-full space-y-6">
-        
         <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
             
-            <!-- COLONNA SINISTRA: FORM INSERIMENTO -->
             <div class="lg:col-span-1 space-y-6">
-                
-                <!-- FORM AGGIUNTA EVENTO / CANTIERE / ASSENZA -->
+                <!-- FORM NUOVO EVENTO CON GESTIONE TIPOLOGIE INTEGRATA NELLA TENDINA -->
                 <div class="bg-white p-5 rounded-xl shadow-md border border-slate-200">
-                    <h2 class="text-base font-bold text-slate-900 mb-4 pb-2 border-b border-slate-100">
-                        {% if current_user.username == 'lena' %}🚫 Registra Assenza / Ferie{% else %}➕ Nuovo Intervento o Cantiere{% endif %}
-                    </h2>
-                    
+                    <h2 class="text-base font-bold text-slate-900 mb-4 pb-2 border-b">➕ Nuovo Intervento</h2>
                     <form action="/events/add" method="POST" class="space-y-4">
-                        <!-- Titolo / Cantiere -->
+                        <div><label class="block text-xs font-semibold text-slate-600 mb-1">Titolo / Cantiere</label><input type="text" name="title" required placeholder="Es. Cantiere Via Roma" class="w-full text-sm border border-slate-300 rounded-lg p-2.5"></div>
+                        
                         <div>
-                            <label class="block text-xs font-semibold text-slate-600 mb-1">Titolo / Cantiere</label>
-                            <input type="text" name="title" required placeholder="Es. Cantiere Via Roma" class="w-full text-sm border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                        </div>
-
-                        <!-- Tipologia con opzione "Altro" -->
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-600 mb-1">Tipologia</label>
-                            <select name="tipologia" id="tipologia-select" onchange="handleTipologiaChange(this)" class="w-full text-sm border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none {% if current_user.username == 'lena' %}bg-slate-100 cursor-not-allowed{% endif %}" {% if current_user.username == 'lena' %}readonly onclick="return false;"{% endif %}>
+                            <div class="flex justify-between items-center mb-1">
+                                <label class="block text-xs font-semibold text-slate-600">Tipologia</label>
+                                {% if current_user.username != 'lena' %}
+                                <div class="flex items-center gap-2 text-[11px]">
+                                    <button type="button" onclick="openAddTipologiaModal()" class="text-blue-600 hover:text-blue-800 font-semibold">➕ Aggiungi</button>
+                                    <button type="button" onclick="editSelectedTipologia()" class="text-amber-600 hover:text-amber-800 font-semibold">✏️ Modifica</button>
+                                    <button type="button" onclick="deleteSelectedTipologia()" class="text-rose-600 hover:text-rose-800 font-semibold">🗑️ Elimina</button>
+                                </div>
+                                {% endif %}
+                            </div>
+                            <select name="tipologia" id="tipologia-select" class="w-full text-sm border border-slate-300 rounded-lg p-2.5 {% if current_user.username == 'lena' %}bg-slate-100 cursor-not-allowed{% endif %}" {% if current_user.username == 'lena' %}readonly onclick="return false;"{% endif %}>
                                 {% if current_user.username == 'lena' %}
                                     <option value="Assenza / Ferie" selected>Assenza / Ferie</option>
                                     <option value="Malattia">Malattia</option>
                                 {% else %}
                                     {% for t in tipologie %}
-                                    <option value="{{ t.nome }}">{{ t.nome }}</option>
+                                    <option value="{{ t.nome }}" data-id="{{ t.id }}">{{ t.nome }}</option>
                                     {% endfor %}
-                                    <option value="__altro__" class="font-bold text-blue-600">➕ Altro (Aggiungi nuova...)</option>
                                 {% endif %}
                             </select>
                         </div>
 
-                        <!-- Date e Orari -->
                         <div class="grid grid-cols-1 gap-3">
-                            <div>
-                                <label class="block text-xs font-semibold text-slate-600 mb-1">Inizio</label>
-                                <input type="datetime-local" name="start_time" required class="w-full text-sm border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-slate-600 mb-1">Fine (Opzionale)</label>
-                                <input type="datetime-local" name="end_time" class="w-full text-sm border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                            </div>
+                            <div><label class="block text-xs font-semibold text-slate-600 mb-1">Inizio</label><input type="datetime-local" name="start_time" lang="it" required class="w-full text-sm border border-slate-300 rounded-lg p-2"></div>
+                            <div><label class="block text-xs font-semibold text-slate-600 mb-1">Fine (Opzionale)</label><input type="datetime-local" name="end_time" lang="it" class="w-full text-sm border border-slate-300 rounded-lg p-2"></div>
                         </div>
-
-                        <!-- Selezione Operai (Squadra) -->
                         <div>
                             <label class="block text-xs font-semibold text-slate-600 mb-1">Operai Coinvolti</label>
                             <div class="space-y-1.5 max-h-36 overflow-y-auto border border-slate-200 p-2.5 rounded-lg bg-slate-50">
-                                {% for op in operai %}
-                                <label class="flex items-center gap-2 text-sm cursor-pointer">
-                                    <input type="checkbox" name="operai" value="{{ op.nome }}" class="rounded text-blue-600 focus:ring-blue-500">
-                                    <span>{{ op.nome }}</span>
-                                </label>
-                                {% endfor %}
+                                {% for op in operai %}<label class="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" name="operai" value="{{ op.nome }}"><span>{{ op.nome }}</span></label>{% endfor %}
                             </div>
                         </div>
-
-                        <!-- Descrizione / Note -->
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-600 mb-1">Note / Dettagli</label>
-                            <textarea name="description" rows="2" placeholder="Dettagli attività..." class="w-full text-sm border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none"></textarea>
-                        </div>
-
-                        
-
-                        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm py-2.5 rounded-lg shadow transition">
-                            Registra nel Calendario
-                        </button>
+                        <div><label class="block text-xs font-semibold text-slate-600 mb-1">Note</label><textarea name="description" rows="2" class="w-full text-sm border border-slate-300 rounded-lg p-2.5"></textarea></div>
+                        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm py-2.5 rounded-lg shadow">Registra nel Calendario</button>
                     </form>
                 </div>
-
             </div>
 
-            <!-- COLONNA DESTRA: CALENDARIO FULLCALENDAR -->
+            <!-- CALENDARIO -->
             <div class="lg:col-span-3">
                 <div class="bg-white p-5 rounded-xl shadow-md border border-slate-200 min-h-[650px]">
                     <div id="calendar"></div>
                 </div>
             </div>
-
         </div>
 
-        <!-- SEZIONE INFERIORE: TUTTI GLI INTERVENTI (IN ORIZZONTALE) -->
+        <!-- LISTA INTERVENTI -->
         <div class="bg-white p-5 rounded-xl shadow-md border border-slate-200 space-y-4">
-            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
-                <h3 class="text-base font-bold text-slate-900">📋 Tutti gli Interventi e le Assenze Registrate</h3>
-                <span class="text-xs bg-blue-100 text-blue-800 font-semibold px-2.5 py-1 rounded-full">Totale: {{ events|length }}</span>
-            </div>
-
-            <!-- Griglia orizzontale delle card -->
+            <h3 class="text-base font-bold text-slate-900 border-b pb-3">📋 Interventi Registrati</h3>
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[500px] overflow-y-auto p-1">
                 {% for ev in events %}
-                <div class="p-4 rounded-xl border border-slate-200 bg-slate-50 text-xs space-y-2 relative flex flex-col justify-between shadow-sm hover:shadow transition">
-                    <div class="space-y-1">
-                        <div class="flex justify-between items-start gap-2">
-                            <span class="font-bold text-slate-900 text-sm truncate">{{ ev.title }}</span>
-                            <span class="text-[10px] px-2 py-0.5 rounded font-medium text-white shrink-0" style="background-color: {{ ev.owner.color if ev.owner else '#3b82f6' }}">
-                                {{ ev.owner.username if ev.owner else '-' }}
-                            </span>
-                        </div>
-                        
+                <div class="p-4 rounded-xl border border-slate-200 bg-slate-50 text-xs space-y-2 flex flex-col justify-between shadow-sm">
+                    <div>
+                        <div class="flex justify-between items-start"><span class="font-bold text-slate-900 text-sm">{{ ev.title }}</span><span class="text-[10px] px-2 py-0.5 rounded text-white" style="background-color: {{ ev.owner.color if ev.owner else '#3b82f6' }}">{{ ev.owner.username if ev.owner else '-' }}</span></div>
                         <p class="text-slate-600"><strong>Tipologia:</strong> {{ ev.tipologia }}</p>
                         <p class="text-slate-600"><strong>Inizio:</strong> {{ ev.start_time.strftime('%d/%m/%Y %H:%M') }}</p>
-                        {% if ev.end_time %}
-                        <p class="text-slate-600"><strong>Fine:</strong> {{ ev.end_time.strftime('%d/%m/%Y %H:%M') }}</p>
-                        {% endif %}
-                        {% if ev.operai %}
-                        <p class="text-slate-600">👥 <strong>Squadra:</strong> {{ ev.operai }}</p>
-                        {% endif %}
-                        {% if ev.description %}
-                        <p class="text-slate-500 italic bg-white p-2 rounded border border-slate-100">"{{ ev.description }}"</p>
-                        {% endif %}
+                        {% if ev.operai %}<p class="text-slate-600">👥 {{ ev.operai }}</p>{% endif %}
                     </div>
-
-                    <!-- Pulsanti di azione (Modifica & Elimina) -->
-                    {% if current_user.role == 'admin' or current_user.username == 'admin' or ev.user_id == current_user.id %}
-                    <div class="flex justify-end items-center gap-2 pt-2 border-t border-slate-200 mt-2">
-                        <button type="button" 
-                                onclick="openEditModal('{{ ev.id }}', '{{ ev.title|e }}', '{{ ev.tipologia|e }}', '{{ ev.start_time.strftime('%Y-%m-%dT%H:%M') }}', '{% if ev.end_time %}{{ ev.end_time.strftime('%Y-%m-%dT%H:%M') }}{% endif %}', '{{ ev.operai or '' }}', '{{ ev.description|e or '' }}')"
-                                class="text-blue-600 hover:text-blue-800 font-semibold px-2.5 py-1 rounded bg-blue-50 hover:bg-blue-100 transition">
-                            Modifica
-                        </button>
-
-                        <form action="/events/delete/{{ ev.id }}" method="POST" onsubmit="return confirm('Vuoi eliminare questo intervento?');">
-                            <button type="submit" class="text-rose-600 hover:text-rose-800 font-semibold px-2.5 py-1 rounded bg-rose-50 hover:bg-rose-100 transition">
-                                Elimina
-                            </button>
-                        </form>
+                    <div class="flex justify-end gap-2 pt-2 border-t mt-2">
+                        <button type="button" onclick="openEditModal('{{ ev.id }}', '{{ ev.title|e }}', '{{ ev.tipologia|e }}', '{{ ev.start_time.strftime('%Y-%m-%dT%H:%M') }}', '{% if ev.end_time %}{{ ev.end_time.strftime('%Y-%m-%dT%H:%M') }}{% endif %}', '{{ ev.operai or '' }}', '{{ ev.description|e or '' }}')" class="text-blue-600 font-semibold px-2 py-1 bg-blue-50 rounded">Modifica</button>
+                        <form action="/events/delete/{{ ev.id }}" method="POST" onsubmit="return confirm('Eliminare?');"><button type="submit" class="text-rose-600 font-semibold px-2 py-1 bg-rose-50 rounded">Elimina</button></form>
                     </div>
-                    {% endif %}
                 </div>
-                {% else %}
-                <p class="text-xs text-slate-400 text-center py-6 col-span-full">Nessun intervento registrato nel sistema.</p>
                 {% endfor %}
             </div>
         </div>
-
     </main>
 
-    <!-- MODALE CAMBIO PASSWORD PERSONALE -->
-    <div id="password-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex justify-center items-center p-4">
-        <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4">
-            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
-                <h3 class="text-base font-bold text-slate-900">🔑 Cambia la tua Password</h3>
-                <button type="button" onclick="document.getElementById('password-modal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 text-lg font-bold">✕</button>
-            </div>
-
-            <form action="/profile/password" method="POST" class="space-y-4">
-                <div>
-                    <label class="block text-xs font-semibold text-slate-600 mb-1">Vecchia Password</label>
-                    <input type="password" name="old_password" required placeholder="••••••••" class="w-full text-sm border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-slate-600 mb-1">Nuova Password</label>
-                    <input type="password" name="new_password" required placeholder="••••••••" class="w-full text-sm border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                </div>
-
-                <div class="flex justify-end gap-2 pt-2">
-                    <button type="button" onclick="document.getElementById('password-modal').classList.add('hidden')" class="px-4 py-2 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition">
-                        Annulla
-                    </button>
-                    <button type="submit" class="px-4 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition shadow">
-                        Aggiorna Password
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- FINESTRA MODALE AGGIUNTA TIPOLOGIA -->
+    <!-- MODALE NUOVA TIPOLOGIA -->
     <div id="tipologia-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex justify-center items-center p-4">
         <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4">
-            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
-                <h3 class="text-base font-bold text-slate-900">🏷️ Nuova Tipologia</h3>
-                <button type="button" onclick="closeTipologiaModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold">✕</button>
-            </div>
-
+            <h3 class="text-base font-bold text-slate-900 border-b pb-2">🏷️ Nuova Tipologia</h3>
             <form action="/tipologie/add" method="POST" class="space-y-4">
-                <div>
-                    <label class="block text-xs font-semibold text-slate-600 mb-1">Nome Tipologia</label>
-                    <input type="text" name="nome" required placeholder="Es. Manutenzione straordinaria" class="w-full text-sm border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                </div>
-
-                <div class="flex justify-end gap-2 pt-2">
-                    <button type="button" onclick="closeTipologiaModal()" class="px-4 py-2 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition">
-                        Annulla
-                    </button>
-                    <button type="submit" class="px-4 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition shadow">
-                        Salva Tipologia
-                    </button>
-                </div>
+                <input type="text" name="nome" required placeholder="Nome tipologia" class="w-full text-sm border rounded-lg p-2.5">
+                <div class="flex justify-end gap-2"><button type="button" onclick="closeTipologiaModal()" class="px-4 py-2 text-xs bg-slate-100 rounded-lg">Annulla</button><button type="submit" class="px-4 py-2 text-xs text-white bg-blue-600 rounded-lg">Salva</button></div>
             </form>
         </div>
     </div>
 
-    <!-- FINESTRA MODALE MODIFICA EVENTO -->
-    <div id="edit-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex justify-center items-center p-4">
-        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
-            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
-                <h3 class="text-base font-bold text-slate-900">✏️ Modifica Intervento</h3>
-                <button type="button" onclick="closeEditModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold">✕</button>
-            </div>
-
-            <form id="edit-form" method="POST" action="" class="space-y-4">
-                <div>
-                    <label class="block text-xs font-semibold text-slate-600 mb-1">Titolo / Cantiere</label>
-                    <input type="text" id="edit-title" name="title" required class="w-full text-sm border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                </div>
-
-                <div>
-                    <label class="block text-xs font-semibold text-slate-600 mb-1">Tipologia</label>
-                    <select id="edit-tipologia" name="tipologia" onchange="handleTipologiaChange(this)" class="w-full text-sm border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none {% if current_user.username == 'lena' %}bg-slate-100 cursor-not-allowed{% endif %}" {% if current_user.username == 'lena' %}readonly onclick="return false;"{% endif %}>
-                        {% if current_user.username == 'lena' %}
-                            <option value="Assenza / Ferie">Assenza / Ferie</option>
-                            <option value="Malattia">Malattia</option>
-                        {% else %}
-                            {% for t in tipologie %}
-                            <option value="{{ t.nome }}">{{ t.nome }}</option>
-                            {% endfor %}
-                            <option value="__altro__" class="font-bold text-blue-600">➕ Altro (Aggiungi nuova...)</option>
-                        {% endif %}
-                    </select>
-                </div>
-
-                <div class="grid grid-cols-1 gap-3">
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-600 mb-1">Inizio</label>
-                        <input type="datetime-local" id="edit-start" name="start_time" required class="w-full text-sm border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-600 mb-1">Fine (Opzionale)</label>
-                        <input type="datetime-local" id="edit-end" name="end_time" class="w-full text-sm border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block text-xs font-semibold text-slate-600 mb-1">Operai Coinvolti</label>
-                    <div class="space-y-1.5 max-h-36 overflow-y-auto border border-slate-200 p-2.5 rounded-lg bg-slate-50">
-                        {% for op in operai %}
-                        <label class="flex items-center gap-2 text-sm cursor-pointer">
-                            <input type="checkbox" name="operai" value="{{ op.nome }}" class="edit-operaio-checkbox rounded text-blue-600 focus:ring-blue-500">
-                            <span>{{ op.nome }}</span>
-                        </label>
-                        {% endfor %}
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block text-xs font-semibold text-slate-600 mb-1">Note / Dettagli</label>
-                    <textarea id="edit-description" name="description" rows="2" class="w-full text-sm border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none"></textarea>
-                </div>
-
-                <!-- OPZIONE FORZA SALVATAGGIO NELLA MODIFICA -->
-                <div class="bg-amber-50 border border-amber-300 p-3 rounded-lg">
-                    <label class="flex items-start gap-2 text-xs font-semibold text-amber-900 cursor-pointer">
-                        <input type="checkbox" name="forza_salvataggio" value="true" class="mt-0.5 rounded text-amber-600 focus:ring-amber-500">
-                        <span>Forza salvataggio (ignora sovrapposizione e inserisci con nota di arrivo in ritardo)</span>
-                    </label>
-                </div>
-
-                <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
-                    <button type="button" onclick="closeEditModal()" class="px-4 py-2 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition">
-                        Annulla
-                    </button>
-                    <button type="submit" class="px-4 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition shadow">
-                        Salva Modifiche
-                    </button>
-                </div>
+    <!-- MODALE MODIFICA TIPOLOGIA -->
+    <div id="edit-tipologia-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex justify-center items-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4">
+            <h3 class="text-base font-bold text-slate-900 border-b pb-2">✏️ Modifica Tipologia Selezionata</h3>
+            <form id="edit-tipologia-form" method="POST" action="" class="space-y-4">
+                <input type="text" id="edit-tipologia-nome" name="nome" required class="w-full text-sm border rounded-lg p-2.5">
+                <div class="flex justify-end gap-2"><button type="button" onclick="document.getElementById('edit-tipologia-modal').classList.add('hidden')" class="px-4 py-2 text-xs bg-slate-100 rounded-lg">Annulla</button><button type="submit" class="px-4 py-2 text-xs text-white bg-blue-600 rounded-lg">Conferma Modifica</button></div>
             </form>
         </div>
     </div>
 
-    <!-- SCRIPT GESTIONE MODALI E FULLCALENDAR -->
+    <!-- MODALE CANCELLAZIONE TIPOLOGIA -->
+    <div id="delete-tipologia-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex justify-center items-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4">
+            <h3 class="text-base font-bold text-rose-600 border-b pb-2">⚠️ Conferma Cancellazione</h3>
+            <p class="text-xs text-slate-600">Vuoi eliminare la tipologia <strong id="delete-tipologia-label" class="text-slate-900"></strong>?</p>
+            <form id="delete-tipologia-form" method="POST" action="" class="space-y-4">
+                <div class="flex justify-end gap-2"><button type="button" onclick="document.getElementById('delete-tipologia-modal').classList.add('hidden')" class="px-4 py-2 text-xs bg-slate-100 rounded-lg">Annulla</button><button type="submit" class="px-4 py-2 text-xs text-white bg-rose-600 rounded-lg">Elimina</button></div>
+            </form>
+        </div>
+    </div>
+
+    <!-- SCRIPT -->
     <script>
-        function handleTipologiaChange(selectElem) {
-            if (selectElem.value === "__altro__") {
-                document.getElementById('tipologia-modal').classList.remove('hidden');
-                selectElem.selectedIndex = 0;
+        function openAddTipologiaModal() {
+            document.getElementById('tipologia-modal').classList.remove('hidden');
+        }
+        function closeTipologiaModal() { 
+            document.getElementById('tipologia-modal').classList.add('hidden'); 
+        }
+        
+        function editSelectedTipologia() {
+            var select = document.getElementById('tipologia-select');
+            var selectedOpt = select.options[select.selectedIndex];
+            if (!selectedOpt || !selectedOpt.dataset.id) {
+                alert("Seleziona una tipologia valida dalla tendina da modificare.");
+                return;
             }
+            var id = selectedOpt.dataset.id;
+            var nome = selectedOpt.value;
+            
+            document.getElementById('edit-tipologia-form').action = '/tipologie/edit/' + id;
+            document.getElementById('edit-tipologia-nome').value = nome;
+            document.getElementById('edit-tipologia-modal').classList.remove('hidden');
         }
 
-        function closeTipologiaModal() {
-            document.getElementById('tipologia-modal').classList.add('hidden');
-        }
+        function deleteSelectedTipologia() {
+            var select = document.getElementById('tipologia-select');
+            var selectedOpt = select.options[select.selectedIndex];
+            if (!selectedOpt || !selectedOpt.dataset.id) {
+                alert("Seleziona una tipologia valida dalla tendina da eliminare.");
+                return;
+            }
+            var id = selectedOpt.dataset.id;
+            var nome = selectedOpt.value;
 
-        function openEditModal(id, title, tipologia, start, end, operaiStr, description) {
-            var form = document.getElementById('edit-form');
-            form.action = '/events/edit/' + id;
-
-            document.getElementById('edit-title').value = title;
-            document.getElementById('edit-tipologia').value = tipologia;
-            document.getElementById('edit-start').value = start;
-            document.getElementById('edit-end').value = end || '';
-            document.getElementById('edit-description').value = description;
-
-            var operaiList = operaiStr.split(',').map(s => s.trim());
-            var checkboxes = document.querySelectorAll('.edit-operaio-checkbox');
-            checkboxes.forEach(function(cb) {
-                cb.checked = operaiList.includes(cb.value);
-            });
-
-            document.getElementById('edit-modal').classList.remove('hidden');
-        }
-
-        function closeEditModal() {
-            document.getElementById('edit-modal').classList.add('hidden');
+            document.getElementById('delete-tipologia-form').action = '/tipologie/delete/' + id;
+            document.getElementById('delete-tipologia-label').textContent = nome;
+            document.getElementById('delete-tipologia-modal').classList.remove('hidden');
         }
 
         document.addEventListener('DOMContentLoaded', function() {
-            var calendarEl = document.getElementById('calendar');
-            var calendar = new FullCalendar.Calendar(calendarEl, {
+            var calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
                 locale: 'it',
                 initialView: 'dayGridMonth',
-                headerToolbar: {
-                    left: 'prev,next today',
-                    center: 'title',
-                    right: 'dayGridMonth,timeGridWeek,listWeek'
-                },
-                datesSet: function(info) {
-                    var currentDate = calendar.getDate();
-                    var year = currentDate.getFullYear();
-                    var month = currentDate.getMonth() + 1;
-                    
-                    var pdfBtn = document.getElementById("btn-export-pdf");
-                    if (pdfBtn) {
-                        pdfBtn.href = `/export/pdf?year=${year}&month=${month}`;
-                    }
-                },
+                headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,listWeek' },
                 events: [
                     {% for ev in events %}
                     {
-                        id: "{{ ev.id }}",
                         title: "{{ ev.title }} ({{ ev.tipologia }})",
                         start: "{{ ev.start_time.isoformat() }}",
-                        {% if ev.end_time %}
-                        end: "{{ ev.end_time.isoformat() }}",
-                        {% endif %}
-                        color: "{% if 'assenza' in ev.tipologia.lower() or 'ferie' in ev.tipologia.lower() or 'malattia' in ev.tipologia.lower() %}#dc2626{% else %}{{ ev.owner.color if ev.owner else '#3b82f6' }}{% endif %}",
-                        extendedProps: {
-                            description: "{{ ev.description or '' }}",
-                            operai: "{{ ev.operai or '' }}",
-                            responsabile: "{{ ev.owner.username if ev.owner else '-' }}"
-                        }
+                        {% if ev.end_time %}end: "{{ ev.end_time.isoformat() }}",{% endif %}
+                        color: "{% if 'assenza' in ev.tipologia.lower() %}#dc2626{% else %}{{ ev.owner.color if ev.owner else '#3b82f6' }}{% endif %}"
                     },
                     {% endfor %}
-                ],
-                eventClick: function(info) {
-                    let props = info.event.extendedProps;
-                    let msg = `Cantiere / Evento: ${info.event.title}\n` +
-                              `Responsabile: ${props.responsabile}\n` +
-                              `Operai: ${props.operai || 'Nessuno'}\n` +
-                              `Note: ${props.description || 'Nessuna'}`;
-                    alert(msg);
-                }
+                ]
             });
             calendar.render();
         });
     </script>
-
 </body>
 </html>
