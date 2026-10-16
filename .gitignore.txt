@@ -1,0 +1,7 @@
+.venv/
+backups/
+back/
+__pycache__/
+*.pyc
+falegnameria.db
+.env

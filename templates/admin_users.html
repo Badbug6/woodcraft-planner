@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestione Utenti e Operai - Falegnameria</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col">
+
+    <!-- HEADER / NAVBAR -->
+    <header class="bg-slate-900 text-white shadow-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+            <div>
+                <h1 class="text-xl font-bold tracking-wide">⚙️ Pannello Admin - Utenti & Operai</h1>
+                <p class="text-xs text-slate-400">Amministratore: <span class="font-semibold text-amber-400">{{ current_user.username.upper() }}</span></p>
+            </div>
+            <div class="flex items-center gap-3">
+                <a href="/" class="bg-slate-800 hover:bg-slate-700 text-white text-sm font-medium px-4 py-2 rounded-lg shadow transition">
+                    ← Torna al Calendario
+                </a>
+                <a href="/logout" class="bg-rose-600 hover:bg-rose-700 text-white text-sm font-medium px-4 py-2 rounded-lg shadow transition">
+                    Esci
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- MESSAGGI DI ERRORE O SUCCESSO -->
+    {% if error_msg %}
+    <div class="bg-rose-500 text-white px-4 py-3 text-center font-medium text-sm">
+        ⛔ {{ error_msg }}
+    </div>
+    {% endif %}
+    {% if success_msg %}
+    <div class="bg-emerald-600 text-white px-4 py-3 text-center font-medium text-sm">
+        ✅ {{ success_msg }}
+    </div>
+    {% endif %}
+
+    <!-- CONTENUTO PRINCIPALE -->
+    <main class="max-w-6xl mx-auto px-4 py-8 flex-grow w-full space-y-8">
+
+        <!-- GRIGLIA SUPERIORE: CREA UTENTE & CREA OPERAIO -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            
+            <!-- CREA NUOVO UTENTE (2 COLONNE) -->
+            <div class="md:col-span-2 bg-white p-6 rounded-2xl shadow-md border border-slate-200 space-y-4">
+                <h2 class="text-base font-bold text-slate-900 pb-2 border-b border-slate-100">➕ Crea Nuovo Utente</h2>
+                <form action="/admin/users/add" method="POST" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Nome Utente</label>
+                        <input type="text" name="username" required placeholder="Es. marco" class="w-full text-sm border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Password</label>
+                        <input type="text" name="password" required placeholder="Password iniziale..." class="w-full text-sm border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Ruolo / Permessi</label>
+                        <select name="role" class="w-full text-sm border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                            <option value="editor">Editor (Standard)</option>
+                            <option value="admin">Admin (Completo)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Colore Identificativo</label>
+                        <input type="color" name="color" value="#3b82f6" class="w-full h-10 border border-slate-300 rounded cursor-pointer p-1">
+                    </div>
+                    <div class="md:col-span-2 pt-2">
+                        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm py-2.5 rounded-lg shadow transition">
+                            Crea Utente
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- CREA NUOVO OPERAIO (1 COLONNA) -->
+            <div class="bg-white p-6 rounded-2xl shadow-md border border-slate-200 space-y-4 flex flex-col justify-between">
+                <div>
+                    <h2 class="text-base font-bold text-slate-900 pb-2 border-b border-slate-100 mb-4">👷 Aggiungi Operaio</h2>
+                    <form action="/operai/add" method="POST" class="space-y-4">
+                        <input type="hidden" name="redirect_to" value="/admin/users">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">Nome e Cognome Operaio</label>
+                            <input type="text" name="nome" required placeholder="Es. Giuseppe Rossi" class="w-full text-sm border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        </div>
+                        <button type="submit" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-medium text-sm py-2.5 rounded-lg shadow transition">
+                            Aggiungi Operaio
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- GRIGLIA INFERIORE: LISTA UTENTI & LISTA OPERAI -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            <!-- TABELLA UTENTI (2 COLONNE) -->
+            <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-md border border-slate-200 space-y-4">
+                <h3 class="text-base font-bold text-slate-900 border-b border-slate-100 pb-2">👥 Utenti Registrati</h3>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs md:text-sm">
+                        <thead>
+                            <tr class="bg-slate-50 text-slate-600 border-b border-slate-200">
+                                <th class="p-3">Utente</th>
+                                <th class="p-3">Ruolo</th>
+                                <th class="p-3 text-right">Azioni</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            {% for u in users %}
+                            <tr class="hover:bg-slate-50/50">
+                                <td class="p-3 font-semibold text-slate-900 flex items-center gap-2">
+                                    <span class="w-3 h-3 rounded-full inline-block" style="background-color: {{ u.color }}"></span>
+                                    {{ u.username }}
+                                </td>
+                                <td class="p-3">
+                                    <span class="px-2 py-1 rounded text-[11px] font-semibold {% if u.role == 'admin' %}bg-purple-100 text-purple-800{% else %}bg-blue-100 text-blue-800{% endif %}">
+                                        {{ u.role.upper() }}
+                                    </span>
+                                </td>
+                                <td class="p-3 text-right space-x-2">
+                                    <button onclick="openEditUserModal('{{ u.id }}', '{{ u.username }}', '{{ u.role }}', '{{ u.color }}')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg font-medium transition">
+                                        Modifica
+                                    </button>
+                                    {% if u.username != 'admin' %}
+                                    <form action="/admin/users/delete/{{ u.id }}" method="POST" class="inline" onsubmit="return confirm('Eliminare questo utente?');">
+                                        <button type="submit" class="bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-1.5 rounded-lg font-medium transition">
+                                            Elimina
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- LISTA OPERAI CON ELIMINAZIONE (1 COLONNA) -->
+            <div class="bg-white p-6 rounded-2xl shadow-md border border-slate-200 space-y-4">
+                <h3 class="text-base font-bold text-slate-900 border-b border-slate-100 pb-2">👷 Lista Operai attivi</h3>
+                <ul class="divide-y divide-slate-100 max-h-80 overflow-y-auto">
+                    {% for op in operai %}
+                    <li class="py-2.5 flex justify-between items-center text-sm">
+                        <span class="font-medium text-slate-800">{{ op.nome }}</span>
+                        <form action="/operai/delete/{{ op.id }}" method="POST" onsubmit="return confirm('Eliminare l\'operaio {{ op.nome }}?');">
+                            <input type="hidden" name="redirect_to" value="/admin/users">
+                            <button type="submit" class="text-xs bg-rose-50 hover:bg-rose-100 text-rose-600 px-2.5 py-1 rounded font-medium transition">
+                                Elimina
+                            </button>
+                        </form>
+                    </li>
+                    {% else %}
+                    <li class="py-4 text-xs text-slate-400 text-center">Nessun operaio registrato.</li>
+                    {% endfor %}
+                </ul>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- MODALE MODIFICA UTENTE -->
+    <div id="edit-user-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex justify-center items-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <h3 class="text-base font-bold text-slate-900">✏️ Modifica Utente</h3>
+                <button type="button" onclick="closeEditUserModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold">✕</button>
+            </div>
+
+            <form id="edit-user-form" method="POST" action="" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Nome Utente</label>
+                    <input type="text" id="edit-username" name="username" required class="w-full text-sm border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Nuova Password (lascia vuoto per non modificarla)</label>
+                    <input type="password" name="password" placeholder="••••••••" class="w-full text-sm border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Ruolo</label>
+                    <select id="edit-role" name="role" class="w-full text-sm border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        <option value="editor">Editor (Standard)</option>
+                        <option value="admin">Admin (Completo)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Colore Identificativo</label>
+                    <input type="color" id="edit-color" name="color" class="w-full h-10 border border-slate-300 rounded cursor-pointer p-1">
+                </div>
+
+                <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                    <button type="button" onclick="closeEditUserModal()" class="px-4 py-2 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition">
+                        Annulla
+                    </button>
+                    <button type="submit" class="px-4 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition shadow">
+                        Salva Modifiche
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- SCRIPT GESTIONE MODALE -->
+    <script>
+        function openEditUserModal(id, username, role, color) {
+            var form = document.getElementById('edit-user-form');
+            form.action = '/admin/users/edit/' + id;
+
+            document.getElementById('edit-username').value = username;
+            document.getElementById('edit-role').value = role;
+            document.getElementById('edit-color').value = color;
+
+            document.getElementById('edit-user-modal').classList.remove('hidden');
+        }
+
+        function closeEditUserModal() {
+            document.getElementById('edit-user-modal').classList.add('hidden');
+        }
+    </script>
+
+</body>
+</html>

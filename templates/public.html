@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualizzazione Pubblica - Falegnameria</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FullCalendar CSS & JS -->
+    <link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css' rel='stylesheet' />
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js'></script>
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/core/locales/it.global.min.js'></script>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col">
+
+    <!-- HEADER / NAVBAR -->
+    <header class="bg-slate-900 text-white shadow-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-4">
+            <div>
+                <h1 class="text-xl font-bold tracking-wide">🪵 Falegnameria - Vista Pubblica Cantieri</h1>
+                <p class="text-xs text-slate-400">Modalità di sola visualizzazione</p>
+            </div>
+            
+            <div class="flex items-center gap-3">
+                <a href="/login" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg shadow transition">
+                    Accedi al Gestionale
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- CONTENUTO PRINCIPALE -->
+    <main class="max-w-7xl mx-auto px-4 py-6 flex-grow w-full space-y-6">
+        
+        <!-- CALENDARIO FULLCALENDAR -->
+        <div class="bg-white p-5 rounded-xl shadow-md border border-slate-200 min-h-[650px]">
+            <div id="calendar"></div>
+        </div>
+
+        <!-- SEZIONE INFERIORE: RECAP DI TUTTE LE LAVORAZIONI (IN ORIZZONTALE) -->
+        <div class="bg-white p-5 rounded-xl shadow-md border border-slate-200 space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <h3 class="text-base font-bold text-slate-900">📋 Tutti gli Interventi e le Assenze Registrate</h3>
+                <span class="text-xs bg-blue-100 text-blue-800 font-semibold px-2.5 py-1 rounded-full">Totale: {{ events|length }}</span>
+            </div>
+
+            <!-- Griglia orizzontale delle card -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[500px] overflow-y-auto p-1">
+                {% for ev in events %}
+                <div class="p-4 rounded-xl border border-slate-200 bg-slate-50 text-xs space-y-2 relative flex flex-col justify-between shadow-sm">
+                    <div class="space-y-1">
+                        <div class="flex justify-between items-start gap-2">
+                            <span class="font-bold text-slate-900 text-sm truncate">{{ ev.title }}</span>
+                            <span class="text-[10px] px-2 py-0.5 rounded font-medium text-white shrink-0" style="background-color: {{ ev.owner.color if ev.owner else '#3b82f6' }}">
+                                {{ ev.owner.username if ev.owner else '-' }}
+                            </span>
+                        </div>
+                        
+                        <p class="text-slate-600"><strong>Tipologia:</strong> {{ ev.tipologia }}</p>
+                        <p class="text-slate-600"><strong>Inizio:</strong> {{ ev.start_time.strftime('%d/%m/%Y %H:%M') }}</p>
+                        {% if ev.end_time %}
+                        <p class="text-slate-600"><strong>Fine:</strong> {{ ev.end_time.strftime('%d/%m/%Y %H:%M') }}</p>
+                        {% endif %}
+                        {% if ev.operai %}
+                        <p class="text-slate-600">👥 <strong>Squadra:</strong> {{ ev.operai }}</p>
+                        {% endif %}
+                        {% if ev.description %}
+                        <p class="text-slate-500 italic bg-white p-2 rounded border border-slate-100">"{{ ev.description }}"</p>
+                        {% endif %}
+                    </div>
+                </div>
+                {% else %}
+                <p class="text-xs text-slate-400 text-center py-6 col-span-full">Nessun intervento registrato nel sistema.</p>
+                {% endfor %}
+            </div>
+        </div>
+
+    </main>
+
+    <!-- SCRIPT CONFIGURAZIONE FULLCALENDAR -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var calendarEl = document.getElementById('calendar');
+            var calendar = new FullCalendar.Calendar(calendarEl, {
+                locale: 'it',
+                initialView: 'dayGridMonth',
+                headerToolbar: {
+                    left: 'prev,next today',
+                    center: 'title',
+                    right: 'dayGridMonth,timeGridWeek,listWeek'
+                },
+                events: [
+                    {% for ev in events %}
+                    {
+                        id: "{{ ev.id }}",
+                        title: "{{ ev.title }} ({{ ev.tipologia }})",
+                        start: "{{ ev.start_time.isoformat() }}",
+                        {% if ev.end_time %}
+                        end: "{{ ev.end_time.isoformat() }}",
+                        {% endif %}
+                        color: "{% if 'assenza' in ev.tipologia.lower() or 'ferie' in ev.tipologia.lower() or 'malattia' in ev.tipologia.lower() %}#dc2626{% else %}{{ ev.owner.color if ev.owner else '#3b82f6' }}{% endif %}",
+                        extendedProps: {
+                            description: "{{ ev.description or '' }}",
+                            operai: "{{ ev.operai or '' }}",
+                            responsabile: "{{ ev.owner.username if ev.owner else '-' }}"
+                        }
+                    },
+                    {% endfor %}
+                ],
+                eventClick: function(info) {
+                    let props = info.event.extendedProps;
+                    let msg = `Cantiere / Evento: ${info.event.title}\n` +
+                              `Responsabile: ${props.responsabile}\n` +
+                              `Operai: ${props.operai || 'Nessuno'}\n` +
+                              `Note: ${props.description || 'Nessuna'}`;
+                    alert(msg);
+                }
+            });
+            calendar.render();
+        });
+    </script>
+
+</body>
+</html>

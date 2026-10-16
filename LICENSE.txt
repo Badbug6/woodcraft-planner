@@ -1,0 +1,11 @@
+Creative Commons Corporation ("Creative Commons") is not a law firm and does not provide legal services or legal advice. Distribution of this public license does not create a lawyer-client or other relationship. Creative Commons makes no information available and disclaims all liability for results resulting from its use.
+
+Using Publicly Available Materials
+
+The licensor reserves all rights not expressly granted under this public license. This public license permits you to copy and redistribute the material in any medium or format, and to remix, transform, and build upon the material, under the following terms:
+
+1. Attribution — You must give appropriate credit, provide a link to the license, and indicate if changes were made.
+2. NonCommercial — You may not use the material for commercial purposes (meaning primarily intended for or directed towards commercial advantage or monetary compensation).
+3. No additional restrictions — You may not apply legal terms or technological measures that legally restrict others from doing anything the license permits.
+
+Full text of the license: https://creativecommons.org/licenses/by-nc/4.0/legalcode
