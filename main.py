@@ -1,5 +1,8 @@
 import io
 import os
+import time
+import queue
+import threading
 import calendar
 import urllib.parse
 from datetime import datetime, timedelta
@@ -16,20 +19,77 @@ from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
-import pywhatkit as kit
+import requests
 
-# --- CONFIGURAZIONE WHATSAPP GRUPPO ---
-# Sostituisci con la parte finale del link d'invito del gruppo WhatsApp (es. https://chat.whatsapp.com/ABC123xyz...)
-WHATSAPP_GROUP_ID = "DOdZpiBtdUCLOz2wTRg6gg"
+# --- CONFIGURAZIONE WHATSAPP (WAHA) ---
+# I valori si leggono dalle variabili d'ambiente, così niente segreti nel codice.
+#   WAHA_API_KEY      chiave API di WAHA (dal file ~/waha/.env)
+#   WHATSAPP_CHAT_ID  ID del gruppo, finisce con @g.us
+#   WAHA_URL          (opzionale) default http://localhost:3000
+#   WAHA_SESSION      (opzionale) default "default"
+WAHA_URL = os.getenv("WAHA_URL", "http://localhost:3000").rstrip("/")
+WAHA_API_KEY = os.getenv("WAHA_API_KEY", "")
+WAHA_SESSION = os.getenv("WAHA_SESSION", "default")
+WHATSAPP_CHAT_ID = os.getenv("WHATSAPP_CHAT_ID", "")
+
+if not WAHA_API_KEY or not WHATSAPP_CHAT_ID:
+    print("⚠️ WAHA_API_KEY o WHATSAPP_CHAT_ID non impostati: i messaggi WhatsApp NON verranno inviati.")
+
+# Coda con un solo worker: i messaggi partono uno alla volta, nell'ordine in cui arrivano.
+_wa_queue: "queue.Queue[str]" = queue.Queue()
+PAUSA_TRA_MESSAGGI = 2  # secondi tra un invio e il successivo
+TENTATIVI = 3
+
+def _wa_worker():
+    while True:
+        messaggio = _wa_queue.get()
+        try:
+            if not WAHA_API_KEY or not WHATSAPP_CHAT_ID:
+                print("❌ WhatsApp non configurato, messaggio scartato.")
+                continue
+            for tentativo in range(1, TENTATIVI + 1):
+                try:
+                    r = requests.post(
+                        f"{WAHA_URL}/api/sendText",
+                        json={"session": WAHA_SESSION, "chatId": WHATSAPP_CHAT_ID, "text": messaggio},
+                        headers={"X-Api-Key": WAHA_API_KEY},
+                        timeout=30,
+                    )
+                    r.raise_for_status()
+                    print("✅ Messaggio inviato al gruppo WhatsApp")
+                    break
+                except Exception as e:
+                    print(f"❌ Invio WhatsApp fallito (tentativo {tentativo}/{TENTATIVI}): {e}")
+                    if tentativo < TENTATIVI:
+                        time.sleep(5)
+        finally:
+            time.sleep(PAUSA_TRA_MESSAGGI)
+            _wa_queue.task_done()
+
+threading.Thread(target=_wa_worker, daemon=True).start()
 
 def invia_whatsapp_gruppo_asincrono(messaggio: str):
-    try:
-        # wait_time=15 (secondi di attesa per l'apertura del browser e caricamento di WhatsApp Web)
-        # tab_close=True (chiude la scheda automaticamente dopo l'invio)
-        kit.sendwhatmsg_to_group_instantly(WHATSAPP_GROUP_ID, messaggio, wait_time=40, tab_close=True, close_time=3)
-        print("✅ Messaggio inviato con successo al gruppo WhatsApp!")
-    except Exception as e:
-        print(f"❌ Errore invio WhatsApp al gruppo: {e}")
+    """Mette il messaggio in coda; l'invio vero avviene nel worker."""
+    _wa_queue.put(messaggio)
+
+def costruisci_messaggio_whatsapp(azione, title, tipologia, dt_start, dt_end, operai_str, username, warning_msg=None):
+    # In WhatsApp il grassetto si fa con UN asterisco (*testo*), non con due.
+    operai_display = operai_str if operai_str else "Nessuno"
+    testo = (
+        f"📋 *{azione}*\n"
+        f"🏷️ *Titolo:* {title}\n"
+        f"📂 *Tipologia:* {tipologia}\n"
+        f"📅 *Inizio:* {dt_start.strftime('%d/%m/%Y %H:%M')}\n"
+    )
+    if dt_end and dt_end != dt_start:
+        testo += f"🏁 *Fine:* {dt_end.strftime('%d/%m/%Y %H:%M')}\n"
+    testo += (
+        f"👷 *Operai:* {operai_display}\n"
+        f"👤 *Inserito da:* {username.upper()}"
+    )
+    if warning_msg:
+        testo += f"\n\n⚠️ *ATTENZIONE SOVRAPPOSIZIONE:*\n" + warning_msg.replace(" | ", "\n")
+    return testo
 
 # --- CONFIGURAZIONE DATABASE ---
 SQLALCHEMY_DATABASE_URL = "sqlite:///./falegnameria.db"
@@ -431,20 +491,11 @@ def add_event(
     db.add(db_event)
     db.commit()
 
-    # 🚀 COSTRUZIONE DEL MESSAGGIO WHATSAPP (Sempre attivo per ogni nuovo inserimento)
-    operai_display = operai_str if operai_str else "Nessuno"
-    testo_messaggio = (
-        f"📋 **Nuovo Intervento / Cantiere Aggiunto**\n"
-        f"🏷️ **Titolo:** {title}\n"
-        f"📂 **Tipologia:** {tipologia}\n"
-        f"📅 **Inizio:** {dt_start.strftime('%d/%m/%Y %H:%M')}\n"
-        f"👷 **Operai:** {operai_display}\n"
-        f"👤 **Inserito da:** {current_user.username.upper()}"
+    # 🚀 Messaggio WhatsApp per ogni nuovo inserimento (con avviso se c'è sovrapposizione)
+    testo_messaggio = costruisci_messaggio_whatsapp(
+        "Nuovo Intervento / Cantiere Aggiunto", title, tipologia,
+        dt_start, dt_end, operai_str, current_user.username, warning_msg
     )
-
-    # Se c'è una sovrapposizione, aggiunge l'avviso in evidenza nel messaggio
-    if warning_msg:
-        testo_messaggio += f"\n\n⚠️ **ATTENZIONE SOVRAPPOSIZIONE:**\n{warning_msg}"
 
     # Accoda l'invio WhatsApp in background per qualsiasi nuovo inserimento
     background_tasks.add_task(invia_whatsapp_gruppo_asincrono, testo_messaggio)
@@ -498,9 +549,6 @@ def edit_event(
         
         if avvisi:
             warning_msg = " | ".join(avvisi)
-            # 🚀 Invio notifica automatica al gruppo WhatsApp in background in caso di modifica con conflitto
-            testo_messaggio = f"⚠️ Falegnameria - Modifica Cantiere ({title}) con Sovrapposizione!\nDettagli: {warning_msg}"
-            background_tasks.add_task(invia_whatsapp_gruppo_asincrono, testo_messaggio)
 
         if note_ritardi:
             ritardi_str = "\n".join(note_ritardi)
@@ -514,6 +562,13 @@ def edit_event(
     event.end_time = dt_end
     
     db.commit()
+
+    # 🚀 Messaggio WhatsApp anche per ogni modifica (con avviso se c'è sovrapposizione)
+    testo_messaggio = costruisci_messaggio_whatsapp(
+        "Intervento / Cantiere Modificato", title, tipologia,
+        dt_start, dt_end, event.operai, current_user.username, warning_msg
+    )
+    background_tasks.add_task(invia_whatsapp_gruppo_asincrono, testo_messaggio)
 
     redirect_url = "/"
     if warning_msg:
