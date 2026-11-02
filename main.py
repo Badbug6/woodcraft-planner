@@ -5,7 +5,7 @@ import urllib.parse
 from datetime import datetime, timedelta
 from typing import Optional, List
 
-from fastapi import FastAPI, Depends, HTTPException, Request, Form, status, Query
+from fastapi import FastAPI, Depends, HTTPException, Request, Form, status, Query, BackgroundTasks
 from fastapi.responses import HTMLResponse, RedirectResponse, Response as FastAPIResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import create_engine, Column, Integer, String, DateTime, ForeignKey
@@ -15,6 +15,21 @@ from reportlab.lib.pagesizes import letter, landscape
 from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+
+import pywhatkit as kit
+
+# --- CONFIGURAZIONE WHATSAPP GRUPPO ---
+# Sostituisci con la parte finale del link d'invito del gruppo WhatsApp (es. https://chat.whatsapp.com/ABC123xyz...)
+WHATSAPP_GROUP_ID = "DOdZpiBtdUCLOz2wTRg6gg"
+
+def invia_whatsapp_gruppo_asincrono(messaggio: str):
+    try:
+        # wait_time=15 (secondi di attesa per l'apertura del browser e caricamento di WhatsApp Web)
+        # tab_close=True (chiude la scheda automaticamente dopo l'invio)
+        kit.sendwhatmsg_to_group_instantly(WHATSAPP_GROUP_ID, messaggio, wait_time=40, tab_close=True, close_time=3)
+        print("✅ Messaggio inviato con successo al gruppo WhatsApp!")
+    except Exception as e:
+        print(f"❌ Errore invio WhatsApp al gruppo: {e}")
 
 # --- CONFIGURAZIONE DATABASE ---
 SQLALCHEMY_DATABASE_URL = "sqlite:///./falegnameria.db"
@@ -66,7 +81,7 @@ class Event(Base):
 
 Base.metadata.create_all(bind=engine)
 
-# --- CREAZIONE AUTOMATICA ADMIN HARDCODED SE IL DB È NUOVO ---
+# --- CREAZIONE AUTOMATICA ADMIN HARDCODED SE IL DB È NUOvo ---
 def init_db():
     db = SessionLocal()
     try:
@@ -367,6 +382,7 @@ def mark_notification_read(request: Request, notif_id: int, db: Session = Depend
 @app.post("/events/add")
 def add_event(
     request: Request,
+    background_tasks: BackgroundTasks,
     title: str = Form(...),
     tipologia: str = Form(...),
     description: str = Form(None),
@@ -415,6 +431,24 @@ def add_event(
     db.add(db_event)
     db.commit()
 
+    # 🚀 COSTRUZIONE DEL MESSAGGIO WHATSAPP (Sempre attivo per ogni nuovo inserimento)
+    operai_display = operai_str if operai_str else "Nessuno"
+    testo_messaggio = (
+        f"📋 **Nuovo Intervento / Cantiere Aggiunto**\n"
+        f"🏷️ **Titolo:** {title}\n"
+        f"📂 **Tipologia:** {tipologia}\n"
+        f"📅 **Inizio:** {dt_start.strftime('%d/%m/%Y %H:%M')}\n"
+        f"👷 **Operai:** {operai_display}\n"
+        f"👤 **Inserito da:** {current_user.username.upper()}"
+    )
+
+    # Se c'è una sovrapposizione, aggiunge l'avviso in evidenza nel messaggio
+    if warning_msg:
+        testo_messaggio += f"\n\n⚠️ **ATTENZIONE SOVRAPPOSIZIONE:**\n{warning_msg}"
+
+    # Accoda l'invio WhatsApp in background per qualsiasi nuovo inserimento
+    background_tasks.add_task(invia_whatsapp_gruppo_asincrono, testo_messaggio)
+
     redirect_url = "/"
     if warning_msg:
         redirect_url += f"?warning_msg={urllib.parse.quote(warning_msg)}"
@@ -425,6 +459,7 @@ def add_event(
 def edit_event(
     request: Request,
     event_id: int,
+    background_tasks: BackgroundTasks,
     title: str = Form(...),
     tipologia: str = Form(...),
     description: str = Form(None),
@@ -463,6 +498,9 @@ def edit_event(
         
         if avvisi:
             warning_msg = " | ".join(avvisi)
+            # 🚀 Invio notifica automatica al gruppo WhatsApp in background in caso di modifica con conflitto
+            testo_messaggio = f"⚠️ Falegnameria - Modifica Cantiere ({title}) con Sovrapposizione!\nDettagli: {warning_msg}"
+            background_tasks.add_task(invia_whatsapp_gruppo_asincrono, testo_messaggio)
 
         if note_ritardi:
             ritardi_str = "\n".join(note_ritardi)
