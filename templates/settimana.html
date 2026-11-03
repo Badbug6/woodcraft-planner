@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Programma settimana {{ intervallo }} - Falegnameria</title>
+    <meta property="og:title" content="Programma settimana {{ intervallo }}">
+    <meta property="og:description" content="{{ riepilogo }}">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col">
+
+    <!-- HEADER / NAVBAR -->
+    <header class="bg-slate-900 text-white shadow-md sticky top-0 z-50 print:static">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-4">
+            <div>
+                <h1 class="text-xl font-bold tracking-wide">🪵 Falegnameria - Programma Settimanale</h1>
+                <p class="text-xs text-slate-400">Modalità di sola visualizzazione</p>
+            </div>
+
+            <div class="flex items-center gap-3 print:hidden">
+                <a href="/login" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg shadow transition">
+                    Accedi al Gestionale
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- CONTENUTO PRINCIPALE -->
+    <main class="max-w-7xl mx-auto px-4 py-6 flex-grow w-full space-y-6">
+
+        <!-- INTESTAZIONE SETTIMANA + NAVIGAZIONE -->
+        <div class="bg-white p-5 rounded-xl shadow-md border border-slate-200 space-y-4">
+            <div class="flex flex-wrap justify-between items-center gap-3">
+                <div>
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Settimana</p>
+                    <h2 class="text-lg font-bold text-slate-900">{{ intervallo }}</h2>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <span class="text-xs bg-blue-100 text-blue-800 font-semibold px-2.5 py-1 rounded-full">{{ txt_interventi }}</span>
+                    {% if n_assenze %}
+                    <span class="text-xs bg-red-100 text-red-800 font-semibold px-2.5 py-1 rounded-full">{{ txt_assenze }}</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4 print:hidden">
+                <a href="{{ prev_url }}" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium px-4 py-2 rounded-lg transition">← Precedente</a>
+                <a href="{{ oggi_url }}" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium px-4 py-2 rounded-lg transition">Questa settimana</a>
+                <a href="{{ next_url }}" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium px-4 py-2 rounded-lg transition">Successiva →</a>
+                <a href="{{ pdf_url }}" class="sm:ml-auto bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium px-4 py-2 rounded-lg shadow transition">📄 Scarica PDF</a>
+            </div>
+        </div>
+
+        <!-- GIORNI DELLA SETTIMANA -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {% for g in giorni %}
+            <section class="bg-white rounded-xl shadow-md border {% if g.oggi %}border-blue-400{% else %}border-slate-200{% endif %} overflow-hidden flex flex-col">
+                <div class="px-4 py-3 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+                    <h3 class="text-sm font-bold {% if g.weekend %}text-slate-500{% else %}text-slate-900{% endif %}">
+                        {{ g.nome }} <span class="font-normal text-slate-500">{{ g.numero }} {{ g.mese }}</span>
+                    </h3>
+                    {% if g.oggi %}
+                    <span class="text-[10px] bg-blue-600 text-white font-semibold px-2 py-0.5 rounded-full">Oggi</span>
+                    {% endif %}
+                </div>
+
+                <div class="p-3 space-y-3 flex-grow">
+                    {% for e in g.eventi %}
+                    <div class="p-3 rounded-xl border text-xs space-y-1.5 shadow-sm {% if e.assenza %}border-red-200 bg-red-50{% else %}border-slate-200 bg-slate-50{% endif %}">
+                        <div class="flex justify-between items-start gap-2">
+                            <span class="font-bold text-sm {% if e.assenza %}text-red-700{% else %}text-slate-900{% endif %}">{% if e.assenza %}🚫 {% endif %}{{ e.titolo }}</span>
+                            <span class="text-[10px] px-2 py-0.5 rounded font-medium text-white shrink-0" style="background-color: {{ e.colore }}">{{ e.resp }}</span>
+                        </div>
+
+                        <p class="text-slate-600"><strong>Tipologia:</strong> {{ e.tipologia }}</p>
+                        <p class="text-slate-600"><strong>Orario:</strong> {{ e.orario }}</p>
+                        {% if e.periodo %}
+                        <p class="text-slate-600"><strong>Periodo:</strong> {{ e.periodo }}</p>
+                        {% endif %}
+                        {% if e.operai %}
+                        <p class="text-slate-600">👥 <strong>Squadra:</strong> {{ e.operai }}</p>
+                        {% endif %}
+                        {% if e.descrizione %}
+                        <p class="text-slate-500 italic bg-white p-2 rounded border border-slate-100">"{{ e.descrizione }}"</p>
+                        {% endif %}
+                    </div>
+                    {% else %}
+                    <p class="text-xs text-slate-400 text-center py-4">Nessun impegno</p>
+                    {% endfor %}
+                </div>
+            </section>
+            {% endfor %}
+        </div>
+
+        <p class="text-center text-xs text-slate-400 pb-2">Aggiornato il {{ aggiornato_il }}</p>
+    </main>
+
+</body>
+</html>

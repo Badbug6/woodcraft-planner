@@ -7,3 +7,4 @@ __pycache__/
 falegnameria.db
 .env
 PyWhatKit_DB.txt
+.settimana_token
