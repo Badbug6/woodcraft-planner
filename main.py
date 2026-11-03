@@ -154,7 +154,7 @@ class Event(Base):
 
 Base.metadata.create_all(bind=engine)
 
-# --- CREAZIONE AUTOMATICA ADMIN HARDCODED SE IL DB È NUOVO ---
+# --- CREAZIONE AUTOMATICA ADMIN HARDCODED SE IL DB È NUOvo ---
 def init_db():
     db = SessionLocal()
     try:
@@ -288,6 +288,7 @@ def index(request: Request, db: Session = Depends(get_db)):
     
     error_msg = request.query_params.get("error_msg")
     warning_msg = request.query_params.get("warning_msg")
+    success_msg = request.query_params.get("success_msg")
     
     return templates.TemplateResponse("index.html", {
         "request": request,
@@ -297,6 +298,7 @@ def index(request: Request, db: Session = Depends(get_db)):
         "tipologie": tipologie,
         "error_msg": error_msg,
         "warning_msg": warning_msg,
+        "success_msg": success_msg,
         "notifications": unread_notifications
     })
 
@@ -835,18 +837,18 @@ def export_pdf(
     )
 
 # =====================================================================
-# PROGRAMMA SETTIMANALE: ogni venerdì alle 12:00 -> PDF + messaggio WhatsApp
+# PROGRAMMA SETTIMANALE: ogni venerdì alle 13:00 -> PDF + messaggio WhatsApp
 # =====================================================================
 # Variabili d'ambiente opzionali:
-#   ORA_INVIO_SETTIMANALE  ora di invio del venerdì (default 12)
+#   ORA_INVIO_SETTIMANALE  ora di invio del venerdì (default 13)
 #   WAHA_INVIA_PDF         "1" per inviare anche il PDF in chat (richiede WAHA Plus)
 #   APP_BASE_URL           indirizzo con cui i colleghi raggiungono il sito, es. https://cantieri.miaditta.it
 #                          -> il messaggio del venerdì contiene il link alla pagina della settimana
 #   SETTIMANA_TOKEN        (opzionale) codice segreto nel link; se manca ne viene generato uno e
 #                          salvato in .settimana_token
 GIORNI_IT = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
-ORA_INVIO_SETTIMANALE = int(os.getenv("ORA_INVIO_SETTIMANALE", "12"))
-FINESTRA_RECUPERO_ORE = 3   # se il programma era spento alle 12, recupera fino alle 15
+ORA_INVIO_SETTIMANALE = int(os.getenv("ORA_INVIO_SETTIMANALE", "13"))
+FINESTRA_RECUPERO_ORE = 3   # se il programma era spento alle 13, recupera fino alle 16
 WAHA_INVIA_PDF = os.getenv("WAHA_INVIA_PDF", "0") == "1"
 APP_BASE_URL = os.getenv("APP_BASE_URL", "").rstrip("/")
 FILE_ULTIMO_INVIO = ".ultimo_invio_settimanale"
