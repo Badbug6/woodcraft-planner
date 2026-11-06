@@ -59,13 +59,13 @@
         <!-- SEZIONE INFERIORE: RECAP DI TUTTE LE LAVORAZIONI -->
         <div class="bg-white p-3 sm:p-5 rounded-xl shadow-md border border-slate-200 space-y-4">
             <div class="flex flex-wrap justify-between items-center gap-2 border-b border-slate-100 pb-3">
-                <h3 class="text-sm sm:text-base font-bold text-slate-900">📋 Tutti gli Interventi e le Assenze Registrate</h3>
-                <span class="text-xs bg-blue-100 text-blue-800 font-semibold px-2.5 py-1 rounded-full">Totale: {{ events|length }}</span>
+                <h3 class="text-sm sm:text-base font-bold text-slate-900">📋 Interventi e Assenze in Programma</h3>
+                <span class="text-xs bg-blue-100 text-blue-800 font-semibold px-2.5 py-1 rounded-full">Totale: {{ events_list|length }}</span>
             </div>
  
             <!-- Griglia delle card (scroll interno solo da tablet in su) -->
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:max-h-[500px] md:overflow-y-auto p-1">
-                {% for ev in events %}
+                {% for ev in events_list %}
                 <div class="p-3 sm:p-4 rounded-xl border border-slate-200 bg-slate-50 text-xs space-y-2 relative flex flex-col justify-between shadow-sm">
                     <div class="space-y-1">
                         <div class="flex justify-between items-start gap-2">
@@ -89,7 +89,7 @@
                     </div>
                 </div>
                 {% else %}
-                <p class="text-xs text-slate-400 text-center py-6 col-span-full">Nessun intervento registrato nel sistema.</p>
+                <p class="text-xs text-slate-400 text-center py-6 col-span-full">Nessun intervento in programma.</p>
                 {% endfor %}
             </div>
         </div>

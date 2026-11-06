@@ -106,9 +106,9 @@
 
         <!-- LISTA INTERVENTI -->
         <div class="bg-white p-5 rounded-xl shadow-md border border-slate-200 space-y-4">
-            <h3 class="text-base font-bold text-slate-900 border-b pb-3">📋 Interventi Registrati</h3>
+            <h3 class="text-base font-bold text-slate-900 border-b pb-3">📋 Interventi in Programma</h3>
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[500px] overflow-y-auto p-1">
-                {% for ev in events %}
+                {% for ev in events_list %}
                 <div class="p-4 rounded-xl border border-slate-200 bg-slate-50 text-xs space-y-2 flex flex-col justify-between shadow-sm">
                     <div>
                         <div class="flex justify-between items-start"><span class="font-bold text-slate-900 text-sm">{{ ev.title }}</span><span class="text-[10px] px-2 py-0.5 rounded text-white" style="background-color: {{ ev.owner.color if ev.owner else '#3b82f6' }}">{{ ev.owner.username if ev.owner else '-' }}</span></div>
@@ -121,6 +121,8 @@
                         <form action="/events/delete/{{ ev.id }}" method="POST" onsubmit="return confirm('Eliminare?');"><button type="submit" class="text-rose-600 font-semibold px-2 py-1 bg-rose-50 rounded">Elimina</button></form>
                     </div>
                 </div>
+                {% else %}
+                <p class="text-xs text-slate-400 text-center py-6 col-span-full">Nessun intervento in programma.</p>
                 {% endfor %}
             </div>
         </div>

@@ -262,12 +262,20 @@ def logout():
     return response
 
 # --- ROTTA PUBBLICA ---
+def _eventi_non_passati(events):
+    """Per le liste: esclude gli interventi già conclusi (finiti prima di oggi).
+    Restano visibili quelli di oggi, quelli in corso su più giorni e quelli futuri.
+    Il calendario continua invece a ricevere tutti gli eventi."""
+    inizio_oggi = datetime.combine(datetime.now().date(), datetime.min.time())
+    return [e for e in events if (e.end_time or e.start_time) >= inizio_oggi]
+
 @app.get("/public", response_class=HTMLResponse)
 def public_view(request: Request, db: Session = Depends(get_db)):
     events = db.query(Event).order_by(Event.start_time.asc()).all()
     return templates.TemplateResponse("public.html", {
         "request": request,
-        "events": events
+        "events": events,
+        "events_list": _eventi_non_passati(events)
     })
 
 # --- ROTTA PRINCIPALE DASHBOARD ---
@@ -294,6 +302,7 @@ def index(request: Request, db: Session = Depends(get_db)):
         "request": request,
         "current_user": current_user,
         "events": events,
+        "events_list": _eventi_non_passati(events),
         "operai": operai,
         "tipologie": tipologie,
         "error_msg": error_msg,
