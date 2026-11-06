@@ -1,71 +1,90 @@
+
 <!DOCTYPE html>
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Visualizzazione Pubblica - Falegnameria</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FullCalendar CSS & JS -->
     <link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css' rel='stylesheet' />
     <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js'></script>
-    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/core/locales/it.global.min.js'></script>
+    <script src='https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.11/locales/it.global.min.js'></script>
+ 
+    <style>
+        /* Evita scroll orizzontale della pagina */
+        html, body { overflow-x: hidden; }
+ 
+        /* Calendario: adattamenti per schermi piccoli */
+        @media (max-width: 640px) {
+            .fc .fc-toolbar { flex-direction: column; align-items: stretch; gap: 0.5rem; }
+            .fc .fc-toolbar-chunk { display: flex; justify-content: center; align-items: center; gap: 0.25rem; }
+            .fc .fc-toolbar-title { font-size: 1.1rem; text-align: center; }
+            .fc .fc-button { padding: 0.4rem 0.7rem; font-size: 0.8rem; }
+            .fc .fc-daygrid-day-number { font-size: 0.75rem; padding: 2px 4px; }
+            .fc .fc-col-header-cell-cushion { font-size: 0.7rem; padding: 2px; }
+            .fc .fc-event { font-size: 0.65rem; }
+            .fc .fc-list-event-title, .fc .fc-list-event-time { font-size: 0.85rem; }
+            .fc .fc-list-day-cushion { font-size: 0.85rem; }
+        }
+    </style>
 </head>
 <body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col">
-
+ 
     <!-- HEADER / NAVBAR -->
-    <header class="bg-slate-900 text-white shadow-md sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-4">
+    <header class="bg-slate-900 text-white shadow-md sm:sticky sm:top-0 z-50">
+        <div class="max-w-7xl mx-auto px-3 sm:px-4 py-3 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
             <div>
-                <h1 class="text-xl font-bold tracking-wide">🪵 Falegnameria - Vista Pubblica Cantieri</h1>
+                <h1 class="text-base sm:text-xl font-bold tracking-wide">🪵 Falegnameria - Vista Pubblica Cantieri</h1>
                 <p class="text-xs text-slate-400">Modalità di sola visualizzazione</p>
             </div>
-            
+ 
             <div class="flex items-center gap-3">
-                <a href="/login" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg shadow transition">
+                <a href="/login" class="w-full sm:w-auto text-center bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg shadow transition">
                     Accedi al Gestionale
                 </a>
             </div>
         </div>
     </header>
-
+ 
     <!-- CONTENUTO PRINCIPALE -->
-    <main class="max-w-7xl mx-auto px-4 py-6 flex-grow w-full space-y-6">
-        
+    <main class="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-6 flex-grow w-full space-y-4 sm:space-y-6">
+ 
         <!-- CALENDARIO FULLCALENDAR -->
-        <div class="bg-white p-5 rounded-xl shadow-md border border-slate-200 min-h-[650px]">
+        <div class="bg-white p-2 sm:p-5 rounded-xl shadow-md border border-slate-200 md:min-h-[650px]">
             <div id="calendar"></div>
         </div>
-
-        <!-- SEZIONE INFERIORE: RECAP DI TUTTE LE LAVORAZIONI (IN ORIZZONTALE) -->
-        <div class="bg-white p-5 rounded-xl shadow-md border border-slate-200 space-y-4">
-            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
-                <h3 class="text-base font-bold text-slate-900">📋 Tutti gli Interventi e le Assenze Registrate</h3>
+ 
+        <!-- SEZIONE INFERIORE: RECAP DI TUTTE LE LAVORAZIONI -->
+        <div class="bg-white p-3 sm:p-5 rounded-xl shadow-md border border-slate-200 space-y-4">
+            <div class="flex flex-wrap justify-between items-center gap-2 border-b border-slate-100 pb-3">
+                <h3 class="text-sm sm:text-base font-bold text-slate-900">📋 Tutti gli Interventi e le Assenze Registrate</h3>
                 <span class="text-xs bg-blue-100 text-blue-800 font-semibold px-2.5 py-1 rounded-full">Totale: {{ events|length }}</span>
             </div>
-
-            <!-- Griglia orizzontale delle card -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[500px] overflow-y-auto p-1">
+ 
+            <!-- Griglia delle card (scroll interno solo da tablet in su) -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:max-h-[500px] md:overflow-y-auto p-1">
                 {% for ev in events %}
-                <div class="p-4 rounded-xl border border-slate-200 bg-slate-50 text-xs space-y-2 relative flex flex-col justify-between shadow-sm">
+                <div class="p-3 sm:p-4 rounded-xl border border-slate-200 bg-slate-50 text-xs space-y-2 relative flex flex-col justify-between shadow-sm">
                     <div class="space-y-1">
                         <div class="flex justify-between items-start gap-2">
-                            <span class="font-bold text-slate-900 text-sm truncate">{{ ev.title }}</span>
+                            <span class="font-bold text-slate-900 text-sm break-words min-w-0">{{ ev.title }}</span>
                             <span class="text-[10px] px-2 py-0.5 rounded font-medium text-white shrink-0" style="background-color: {{ ev.owner.color if ev.owner else '#3b82f6' }}">
                                 {{ ev.owner.username if ev.owner else '-' }}
                             </span>
                         </div>
-                        
+ 
                         <p class="text-slate-600"><strong>Tipologia:</strong> {{ ev.tipologia }}</p>
                         <p class="text-slate-600"><strong>Inizio:</strong> {{ ev.start_time.strftime('%d/%m/%Y %H:%M') }}</p>
                         {% if ev.end_time %}
                         <p class="text-slate-600"><strong>Fine:</strong> {{ ev.end_time.strftime('%d/%m/%Y %H:%M') }}</p>
                         {% endif %}
                         {% if ev.operai %}
-                        <p class="text-slate-600">👥 <strong>Squadra:</strong> {{ ev.operai }}</p>
+                        <p class="text-slate-600 break-words">👥 <strong>Squadra:</strong> {{ ev.operai }}</p>
                         {% endif %}
                         {% if ev.description %}
-                        <p class="text-slate-500 italic bg-white p-2 rounded border border-slate-100">"{{ ev.description }}"</p>
+                        <p class="text-slate-500 italic bg-white p-2 rounded border border-slate-100 break-words">"{{ ev.description }}"</p>
                         {% endif %}
                     </div>
                 </div>
@@ -74,35 +93,42 @@
                 {% endfor %}
             </div>
         </div>
-
+ 
     </main>
-
+ 
     <!-- SCRIPT CONFIGURAZIONE FULLCALENDAR -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             var calendarEl = document.getElementById('calendar');
+            var mq = window.matchMedia('(max-width: 640px)');
+ 
+            function toolbarFor(isMobile) {
+                return isMobile
+                    ? { left: 'prev,next today', center: 'title', right: 'dayGridMonth,listWeek' }
+                    : { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,listWeek' };
+            }
+ 
             var calendar = new FullCalendar.Calendar(calendarEl, {
                 locale: 'it',
-                initialView: 'dayGridMonth',
-                headerToolbar: {
-                    left: 'prev,next today',
-                    center: 'title',
-                    right: 'dayGridMonth,timeGridWeek,listWeek'
-                },
+                // Su mobile parte dalla lista settimanale, più leggibile
+                initialView: mq.matches ? 'listWeek' : 'dayGridMonth',
+                headerToolbar: toolbarFor(mq.matches),
+                height: 'auto',
+                dayMaxEvents: true,
                 events: [
                     {% for ev in events %}
                     {
-                        id: "{{ ev.id }}",
-                        title: "{{ ev.title }} ({{ ev.tipologia }})",
-                        start: "{{ ev.start_time.isoformat() }}",
+                        id: {{ ev.id|string|tojson }},
+                        title: {{ (ev.title ~ ' (' ~ ev.tipologia ~ ')')|tojson }},
+                        start: {{ ev.start_time.isoformat()|tojson }},
                         {% if ev.end_time %}
-                        end: "{{ ev.end_time.isoformat() }}",
+                        end: {{ ev.end_time.isoformat()|tojson }},
                         {% endif %}
                         color: "{% if 'assenza' in ev.tipologia.lower() or 'ferie' in ev.tipologia.lower() or 'malattia' in ev.tipologia.lower() %}#dc2626{% else %}{{ ev.owner.color if ev.owner else '#3b82f6' }}{% endif %}",
                         extendedProps: {
-                            description: "{{ ev.description or '' }}",
-                            operai: "{{ ev.operai or '' }}",
-                            responsabile: "{{ ev.owner.username if ev.owner else '-' }}"
+                            description: {{ (ev.description or '')|tojson }},
+                            operai: {{ (ev.operai or '')|tojson }},
+                            responsabile: {{ (ev.owner.username if ev.owner else '-')|tojson }}
                         }
                     },
                     {% endfor %}
@@ -117,8 +143,19 @@
                 }
             });
             calendar.render();
+ 
+            // Adatta toolbar e vista se cambia la larghezza (rotazione, resize)
+            function onBreakpointChange(e) {
+                calendar.setOption('headerToolbar', toolbarFor(e.matches));
+                if (e.matches && calendar.view.type === 'timeGridWeek') {
+                    calendar.changeView('listWeek');
+                }
+            }
+            if (mq.addEventListener) { mq.addEventListener('change', onBreakpointChange); }
+            else if (mq.addListener) { mq.addListener(onBreakpointChange); }
         });
     </script>
-
+ 
 </body>
 </html>
+
