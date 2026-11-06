@@ -1,6 +1,9 @@
 import io
 import os
 import re
+import json
+import hmac
+import hashlib
 import sys
 import secrets
 import base64
@@ -154,6 +157,127 @@ class Event(Base):
 
 Base.metadata.create_all(bind=engine)
 
+# =====================================================================
+# SICUREZZA: password cifrate + cookie di sessione firmato
+# =====================================================================
+# Variabili d'ambiente opzionali:
+#   SESSION_SECRET          chiave per firmare i cookie; se manca viene creata e salvata in .session_secret
+#   DURATA_SESSIONE_GIORNI  validità massima di un accesso (default 30)
+#   COOKIE_SECURE           "1" per forzare il cookie solo-HTTPS (si attiva da solo se il sito è in HTTPS)
+FILE_CHIAVE_SESSIONE = ".session_secret"
+DURATA_SESSIONE_GIORNI = int(os.getenv("DURATA_SESSIONE_GIORNI", "30"))
+COOKIE_SECURE = os.getenv("COOKIE_SECURE", "0") == "1"
+PASSWORD_PREDEFINITA_ADMIN = "admin123"
+
+def _carica_chiave_sessione() -> str:
+    chiave = os.getenv("SESSION_SECRET", "").strip()
+    if chiave:
+        return chiave
+    for _ in range(3):
+        try:
+            with open(FILE_CHIAVE_SESSIONE, "r") as f:
+                chiave = f.read().strip()
+            if chiave:
+                return chiave
+        except OSError:
+            pass
+        nuova = secrets.token_urlsafe(48)
+        try:
+            # O_EXCL: se due processi partono insieme, uno solo crea il file
+            fd = os.open(FILE_CHIAVE_SESSIONE, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(fd, "w") as f:
+                f.write(nuova)
+            return nuova
+        except FileExistsError:
+            time.sleep(0.2)
+            continue
+        except OSError as e:
+            print(f"⚠️ Impossibile salvare {FILE_CHIAVE_SESSIONE}: {e} (gli accessi decadranno ad ogni riavvio)")
+            return nuova
+    return secrets.token_urlsafe(48)
+
+SESSION_SECRET = _carica_chiave_sessione()
+
+# --- password ---
+_SCRYPT_N, _SCRYPT_R, _SCRYPT_P = 2 ** 14, 8, 1
+
+def _b64e(dati: bytes) -> str:
+    return base64.urlsafe_b64encode(dati).decode("ascii").rstrip("=")
+
+def _b64d(testo: str) -> bytes:
+    return base64.urlsafe_b64decode(testo + "=" * (-len(testo) % 4))
+
+def hash_password(password: str) -> str:
+    """Cifra la password (scrypt + sale casuale). Il risultato contiene anche i parametri usati."""
+    sale = os.urandom(16)
+    h = hashlib.scrypt(password.encode("utf-8"), salt=sale, n=_SCRYPT_N, r=_SCRYPT_R, p=_SCRYPT_P,
+                       dklen=32, maxmem=128 * _SCRYPT_N * _SCRYPT_R * 2 + 2 ** 20)
+    return f"scrypt${_SCRYPT_N}${_SCRYPT_R}${_SCRYPT_P}${_b64e(sale)}${_b64e(h)}"
+
+def password_in_chiaro(salvata: Optional[str]) -> bool:
+    return not (salvata or "").startswith("scrypt$")
+
+def verifica_password(password: str, salvata: Optional[str]) -> bool:
+    if not salvata:
+        return False
+    if salvata.startswith("scrypt$"):
+        try:
+            _, n, r, p, sale, atteso = salvata.split("$")
+            atteso_b = _b64d(atteso)
+            calcolato = hashlib.scrypt(password.encode("utf-8"), salt=_b64d(sale), n=int(n), r=int(r), p=int(p),
+                                       dklen=len(atteso_b), maxmem=128 * int(n) * int(r) * 2 + 2 ** 20)
+            return hmac.compare_digest(calcolato, atteso_b)
+        except Exception:
+            return False
+    # vecchio formato (password in chiaro): serve solo a non bloccare chi non è ancora stato migrato
+    return hmac.compare_digest(password.encode("utf-8"), salvata.encode("utf-8"))
+
+# usato quando l'utente non esiste, così il tempo di risposta non rivela quali nomi esistono
+_HASH_FINTO = hash_password("password-finta")
+
+# --- cookie di sessione firmato ---
+def _firma(dati: str) -> str:
+    return _b64e(hmac.new(SESSION_SECRET.encode("utf-8"), dati.encode("ascii"), hashlib.sha256).digest())
+
+def crea_cookie_sessione(username: str) -> str:
+    scadenza = int(time.time()) + DURATA_SESSIONE_GIORNI * 86400
+    dati = _b64e(json.dumps({"u": username, "e": scadenza}, separators=(",", ":")).encode("utf-8"))
+    return f"{dati}.{_firma(dati)}"
+
+def leggi_cookie_sessione(valore: Optional[str]) -> Optional[str]:
+    """Ritorna il nome utente se il cookie è autentico e non scaduto, altrimenti None."""
+    if not valore or "." not in valore:
+        return None
+    dati, firma = valore.rsplit(".", 1)
+    try:
+        if not hmac.compare_digest(firma.encode("ascii"), _firma(dati).encode("ascii")):
+            return None
+        contenuto = json.loads(_b64d(dati).decode("utf-8"))
+        if int(contenuto["e"]) < time.time():
+            return None
+        return str(contenuto["u"])
+    except Exception:
+        return None
+
+def imposta_cookie_sessione(response, request: Request, username: str):
+    in_https = (COOKIE_SECURE or request.url.scheme == "https"
+                or request.headers.get("x-forwarded-proto", "").split(",")[0].strip() == "https")
+    response.set_cookie(key="session_user", value=crea_cookie_sessione(username),
+                        httponly=True, samesite="lax", secure=in_https)
+
+def migra_password_in_chiaro():
+    """Alla partenza cifra le password ancora in chiaro; gli utenti continuano ad entrare con le stesse."""
+    db = SessionLocal()
+    try:
+        da_migrare = [u for u in db.query(User).all() if u.password and password_in_chiaro(u.password)]
+        for u in da_migrare:
+            u.password = hash_password(u.password)
+        if da_migrare:
+            db.commit()
+            print(f"🔐 Password cifrate per {len(da_migrare)} utente/i")
+    finally:
+        db.close()
+
 # --- CREAZIONE AUTOMATICA ADMIN HARDCODED SE IL DB È NUOvo ---
 def init_db():
     db = SessionLocal()
@@ -163,7 +287,7 @@ def init_db():
             print("⚙️ Database vuoto: creazione utente admin predefinito...")
             default_admin = User(
                 username="admin",
-                password="admin123",
+                password=hash_password(PASSWORD_PREDEFINITA_ADMIN),
                 role="admin",
                 color="#13293d"
             )
@@ -173,6 +297,7 @@ def init_db():
         db.close()
 
 init_db()
+migra_password_in_chiaro()
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
@@ -186,7 +311,7 @@ def get_db():
 
 # --- AUTENTICAZIONE COOKIE ---
 def get_current_user(request: Request, db: Session = Depends(get_db)) -> Optional[User]:
-    username = request.cookies.get("session_user")
+    username = leggi_cookie_sessione(request.cookies.get("session_user"))
     if not username:
         return None
     return db.query(User).filter(User.username == username).first()
@@ -247,12 +372,17 @@ def login_page(request: Request):
 
 @app.post("/login")
 def login(request: Request, username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.username == username, User.password == password).first()
-    if not user:
+    user = db.query(User).filter(User.username == username).first()
+    password_ok = verifica_password(password, user.password if user else _HASH_FINTO)
+    if not user or not password_ok:
         return RedirectResponse(url="/login?error=1", status_code=status.HTTP_303_SEE_OTHER)
-    
+
+    if password_in_chiaro(user.password):      # utente non ancora migrato: la cifro adesso
+        user.password = hash_password(password)
+        db.commit()
+
     response = RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
-    response.set_cookie(key="session_user", value=user.username)
+    imposta_cookie_sessione(response, request, user.username)
     return response
 
 @app.get("/logout")
@@ -297,6 +427,8 @@ def index(request: Request, db: Session = Depends(get_db)):
     error_msg = request.query_params.get("error_msg")
     warning_msg = request.query_params.get("warning_msg")
     success_msg = request.query_params.get("success_msg")
+    password_debole = (current_user.username == "admin"
+                       and verifica_password(PASSWORD_PREDEFINITA_ADMIN, current_user.password))
     
     return templates.TemplateResponse("index.html", {
         "request": request,
@@ -308,6 +440,7 @@ def index(request: Request, db: Session = Depends(get_db)):
         "error_msg": error_msg,
         "warning_msg": warning_msg,
         "success_msg": success_msg,
+        "password_debole": password_debole,
         "notifications": unread_notifications
     })
 
@@ -323,13 +456,13 @@ def change_password(
     if not current_user:
         return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
     
-    if current_user.password != old_password:
+    if not verifica_password(old_password, current_user.password):
         return RedirectResponse(url="/?error_msg=La+vecchia+password+non+è+corretta", status_code=status.HTTP_303_SEE_OTHER)
     
     if len(new_password.strip()) < 3:
         return RedirectResponse(url="/?error_msg=La+nuova+password+è+troppo+corta", status_code=status.HTTP_303_SEE_OTHER)
         
-    current_user.password = new_password.strip()
+    current_user.password = hash_password(new_password.strip())
     db.commit()
     return RedirectResponse(url="/?success_msg=Password+aggiornata+con+successo", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -373,7 +506,7 @@ def admin_add_user(
         
     new_user = User(
         username=username.strip(),
-        password=password.strip(),
+        password=hash_password(password.strip()),
         role=role.strip(),
         color=color.strip()
     )
@@ -403,7 +536,7 @@ def admin_edit_user(
     target_user.role = role.strip()
     target_user.color = color.strip()
     if password and password.strip():
-        target_user.password = password.strip()
+        target_user.password = hash_password(password.strip())
         
     db.commit()
     return RedirectResponse(url="/admin/users?success_msg=Utente+aggiornato+con+successo", status_code=status.HTTP_303_SEE_OTHER)

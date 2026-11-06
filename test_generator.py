@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 import random
 from sqlalchemy.orm import Session
-from main import SessionLocal, User, Event, Operaio, Tipologia, Base, engine
+from main import SessionLocal, User, Event, Operaio, Tipologia, Base, engine, hash_password
 
 # Ricrea il DB per garantire l'allineamento dei campi
 Base.metadata.create_all(bind=engine)
@@ -26,7 +26,7 @@ def seed():
     
     created_users = {}
     for u in users_data:
-        user = User(username=u["username"], password=u["password"], role=u["role"], color=u["color"])
+        user = User(username=u["username"], password=hash_password(u["password"]), role=u["role"], color=u["color"])
         db.add(user)
         db.commit()
         db.refresh(user)

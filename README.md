@@ -75,6 +75,15 @@ Al primo avvio, il database crea automaticamente un utente amministratore di def
 •	Password: admin123
 (Si raccomanda di modificare la password dell'amministratore subito dopo il primo accesso).
 
+## 🔐 Sicurezza
+
+- Le password sono salvate **cifrate** (scrypt con sale casuale), mai in chiaro. Le password già presenti vengono cifrate automaticamente al primo avvio dopo l'aggiornamento: gli utenti entrano con le stesse di prima.
+- L'accesso usa un **cookie firmato** (non falsificabile) con scadenza. La chiave di firma viene creata al primo avvio e salvata in `.session_secret` (escluso da Git). In alternativa si può impostare la variabile d'ambiente `SESSION_SECRET`.
+- Il cookie diventa "solo HTTPS" da solo quando il sito è servito in HTTPS (oppure con `COOKIE_SECURE=1`).
+- `DURATA_SESSIONE_GIORNI` (default 30) imposta per quanto tempo un accesso resta valido.
+- Finché l'utente `admin` usa la password predefinita, la dashboard mostra un avviso.
+- Prima di aggiornare da una versione precedente fai una copia di `falegnameria.db`: dopo la cifratura delle password non si può tornare indietro senza quella copia (poi eliminala, perché contiene le vecchie password in chiaro).
+
 ## 📜 Licenza
 Questo progetto è distribuito sotto licenza Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0).
 È possibile consultare, modificare, forkarlo e riutilizzarlo per scopi personali o interni, ma ne è espressamente vietata la rivendita o lo sfruttamento commerciale diretto. Per ulteriori dettagli, consultare il file LICENSE.

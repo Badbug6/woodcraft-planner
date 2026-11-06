@@ -9,3 +9,4 @@ falegnameria.db
 PyWhatKit_DB.txt
 .settimana_token
 .ultimo_invio_settimanale
+.session_secret

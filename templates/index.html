@@ -39,6 +39,10 @@
     </div>
     {% endif %}
 
+    {% if password_debole %}
+    <div id="weak-password-banner" class="bg-amber-500 text-slate-900 px-4 py-3 text-center font-medium z-40">⚠️ <strong>Attenzione:</strong> stai usando ancora la password predefinita. Cambiala subito da "🔑 Cambia Password".</div>
+    {% endif %}
+
     {% if error_msg %}
     <div id="error-banner" class="bg-rose-500 text-white px-4 py-3 text-center font-medium z-40">⛔ <strong>Errore:</strong> {{ error_msg }} <button onclick="this.parentElement.style.display='none'" class="ml-4 bg-rose-700 px-2 py-0.5 rounded text-xs">Chiudi</button></div>
     {% endif %}
