@@ -21,7 +21,7 @@
                 {% if current_user.role == 'admin' or current_user.username == 'admin' %}
                 <a href="/admin/users" class="bg-slate-800 hover:bg-slate-700 text-white text-sm font-medium px-4 py-2 rounded-lg shadow transition">👥 Gestisci Utenti & Operai</a>
                 {% endif %}
-                <button type="button" onclick="document.getElementById('password-modal').classList.add('hidden'); document.getElementById('password-modal').classList.remove('hidden')" class="bg-slate-800 hover:bg-slate-700 text-white text-sm font-medium px-4 py-2 rounded-lg shadow transition">🔑 Cambia Password</button>
+                <button type="button" onclick="openPasswordModal()" class="bg-slate-800 hover:bg-slate-700 text-white text-sm font-medium px-4 py-2 rounded-lg shadow transition">🔑 Cambia Password</button>
                 <a id="btn-export-pdf" href="/export/pdf" class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-4 py-2 rounded-lg shadow transition">📄 Scarica PDF Mese</a>
                 <a href="/logout" class="bg-rose-600 hover:bg-rose-700 text-white text-sm font-medium px-4 py-2 rounded-lg shadow transition">Esci</a>
             </div>
@@ -51,6 +51,10 @@
     <div id="warning-banner" class="bg-amber-500 text-slate-900 px-4 py-3 text-center font-medium z-40">📢 <strong>Nota:</strong> {{ warning_msg }} <button onclick="this.parentElement.style.display='none'" class="ml-4 bg-amber-700 text-white px-2 py-0.5 rounded text-xs">Ho capito</button></div>
     {% endif %}
 
+    {% if success_msg %}
+    <div id="success-banner" class="bg-emerald-600 text-white px-4 py-3 text-center font-medium z-40">✅ {{ success_msg }} <button onclick="this.parentElement.style.display='none'" class="ml-4 bg-emerald-800 px-2 py-0.5 rounded text-xs">Chiudi</button></div>
+    {% endif %}
+
     <main class="max-w-7xl mx-auto px-4 py-6 flex-grow w-full space-y-6">
         <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
             
@@ -70,6 +74,8 @@
                                     <button type="button" onclick="editSelectedTipologia()" class="text-amber-600 hover:text-amber-800 font-semibold">✏️ Modifica</button>
                                     <button type="button" onclick="deleteSelectedTipologia()" class="text-rose-600 hover:text-rose-800 font-semibold">🗑️ Elimina</button>
                                 </div>
+                                {% else %}
+                                <button type="button" onclick="openManageTipologieModal()" class="text-[11px] text-blue-600 hover:text-blue-800 font-semibold">🏷️ Gestisci tipologie</button>
                                 {% endif %}
                             </div>
                             <select name="tipologia" id="tipologia-select" class="w-full text-sm border border-slate-300 rounded-lg p-2.5 {% if current_user.username == 'lena' %}bg-slate-100 cursor-not-allowed{% endif %}" {% if current_user.username == 'lena' %}readonly onclick="return false;"{% endif %}>
@@ -132,6 +138,64 @@
         </div>
     </main>
 
+    <!-- MODALE CAMBIA PASSWORD -->
+    <div id="password-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex justify-center items-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4">
+            <h3 class="text-base font-bold text-slate-900 border-b pb-2">🔑 Cambia Password</h3>
+            <form action="/profile/password" method="POST" class="space-y-4" onsubmit="return checkPasswordForm(this)">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Password attuale</label>
+                    <input type="password" name="old_password" required autocomplete="current-password" class="w-full text-sm border border-slate-300 rounded-lg p-2.5">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Nuova password</label>
+                    <input type="password" name="new_password" required minlength="3" autocomplete="new-password" class="w-full text-sm border border-slate-300 rounded-lg p-2.5">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Ripeti la nuova password</label>
+                    <input type="password" id="confirm-password" required minlength="3" autocomplete="new-password" class="w-full text-sm border border-slate-300 rounded-lg p-2.5">
+                </div>
+                <p id="password-error" class="hidden text-xs text-rose-600 font-medium">Le due password non coincidono.</p>
+                <div class="flex justify-end gap-2"><button type="button" onclick="closePasswordModal()" class="px-4 py-2 text-xs bg-slate-100 rounded-lg">Annulla</button><button type="submit" class="px-4 py-2 text-xs text-white bg-blue-600 rounded-lg">Salva</button></div>
+            </form>
+        </div>
+    </div>
+
+    {% if current_user.username == 'lena' %}
+    <!-- MODALE GESTIONE TIPOLOGIE (per chi non vede i pulsanti accanto al menu) -->
+    <div id="manage-tipologie-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex justify-center items-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4">
+            <div class="flex justify-between items-center border-b pb-2">
+                <h3 class="text-base font-bold text-slate-900">🏷️ Gestisci Tipologie</h3>
+                <button type="button" onclick="closeManageTipologieModal()" class="text-slate-400 hover:text-slate-700 text-lg leading-none" title="Chiudi">✕</button>
+            </div>
+
+            <div class="space-y-2 max-h-72 overflow-y-auto pr-1">
+                {% for t in tipologie %}
+                <div class="flex items-center gap-2">
+                    <form action="/tipologie/edit/{{ t.id }}" method="POST" class="flex items-center gap-2 flex-1">
+                        <input type="text" name="nome" value="{{ t.nome }}" required class="flex-1 min-w-0 text-sm border border-slate-300 rounded-lg p-2">
+                        <button type="submit" class="px-3 py-2 text-xs bg-amber-100 text-amber-800 font-semibold rounded-lg shrink-0" title="Salva il nuovo nome">✏️ Salva</button>
+                    </form>
+                    <form action="/tipologie/delete/{{ t.id }}" method="POST" data-nome="{{ t.nome }}" onsubmit="return confirm('Eliminare la tipologia «' + this.dataset.nome + '»?');">
+                        <button type="submit" class="px-3 py-2 text-xs bg-rose-100 text-rose-700 font-semibold rounded-lg" title="Elimina">🗑️</button>
+                    </form>
+                </div>
+                {% else %}
+                <p class="text-xs text-slate-400 text-center py-4">Nessuna tipologia presente.</p>
+                {% endfor %}
+            </div>
+
+            <form action="/tipologie/add" method="POST" class="flex items-center gap-2 border-t pt-4">
+                <input type="text" name="nome" required placeholder="Nuova tipologia..." class="flex-1 min-w-0 text-sm border border-slate-300 rounded-lg p-2">
+                <button type="submit" class="px-3 py-2 text-xs text-white bg-blue-600 font-semibold rounded-lg shrink-0">➕ Aggiungi</button>
+            </form>
+
+            <p class="text-[11px] text-slate-500">Nota: le tipologie con "assenza", "ferie" o "malattia" nel nome sono trattate come assenze (colore rosso e controllo delle sovrapposizioni). Se le rinomini o le elimini, il calendario non le riconosce più come tali.</p>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- MODALE NUOVA TIPOLOGIA -->
     <div id="tipologia-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex justify-center items-center p-4">
         <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4">
@@ -167,6 +231,28 @@
 
     <!-- SCRIPT -->
     <script>
+        function openPasswordModal() {
+            document.getElementById('password-error').classList.add('hidden');
+            document.getElementById('password-modal').classList.remove('hidden');
+        }
+        function closePasswordModal() {
+            document.getElementById('password-modal').classList.add('hidden');
+        }
+        function checkPasswordForm(form) {
+            if (form.new_password.value !== document.getElementById('confirm-password').value) {
+                document.getElementById('password-error').classList.remove('hidden');
+                return false;
+            }
+            return true;
+        }
+
+        function openManageTipologieModal() {
+            document.getElementById('manage-tipologie-modal').classList.remove('hidden');
+        }
+        function closeManageTipologieModal() {
+            document.getElementById('manage-tipologie-modal').classList.add('hidden');
+        }
+
         function openAddTipologiaModal() {
             document.getElementById('tipologia-modal').classList.remove('hidden');
         }
