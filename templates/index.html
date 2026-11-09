@@ -7,7 +7,21 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css' rel='stylesheet' />
     <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js'></script>
-    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/core/locales/it.global.min.js'></script>
+    <script src='https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.11/locales/it.global.min.js'></script>
+    <style>
+        html, body { overflow-x: hidden; }
+        .fc .fc-event { cursor: pointer; }
+        @media (max-width: 640px) {
+            .fc .fc-toolbar { flex-direction: column; align-items: stretch; gap: 0.5rem; }
+            .fc .fc-toolbar-chunk { display: flex; justify-content: center; align-items: center; gap: 0.25rem; }
+            .fc .fc-toolbar-title { font-size: 1.1rem; text-align: center; }
+            .fc .fc-button { padding: 0.4rem 0.7rem; font-size: 0.8rem; }
+            .fc .fc-daygrid-day-number { font-size: 0.75rem; padding: 2px 4px; }
+            .fc .fc-col-header-cell-cushion { font-size: 0.7rem; padding: 2px; }
+            .fc .fc-event { font-size: 0.65rem; }
+            .fc .fc-list-event-title, .fc .fc-list-event-time { font-size: 0.85rem; }
+        }
+    </style>
 </head>
 <body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col">
 
@@ -126,10 +140,12 @@
                         <p class="text-slate-600"><strong>Inizio:</strong> {{ ev.start_time.strftime('%d/%m/%Y %H:%M') }}</p>
                         {% if ev.operai %}<p class="text-slate-600">👥 {{ ev.operai }}</p>{% endif %}
                     </div>
+                    {% if current_user.role == 'admin' or current_user.username == 'admin' or ev.user_id == current_user.id %}
                     <div class="flex justify-end gap-2 pt-2 border-t mt-2">
-                        <button type="button" onclick="openEditModal('{{ ev.id }}', '{{ ev.title|e }}', '{{ ev.tipologia|e }}', '{{ ev.start_time.strftime('%Y-%m-%dT%H:%M') }}', '{% if ev.end_time %}{{ ev.end_time.strftime('%Y-%m-%dT%H:%M') }}{% endif %}', '{{ ev.operai or '' }}', '{{ ev.description|e or '' }}')" class="text-blue-600 font-semibold px-2 py-1 bg-blue-50 rounded">Modifica</button>
+                        <button type="button" onclick="openEditModal('{{ ev.id }}')" class="text-blue-600 font-semibold px-2 py-1 bg-blue-50 rounded">Modifica</button>
                         <form action="/events/delete/{{ ev.id }}" method="POST" onsubmit="return confirm('Eliminare?');"><button type="submit" class="text-rose-600 font-semibold px-2 py-1 bg-rose-50 rounded">Elimina</button></form>
                     </div>
+                    {% endif %}
                 </div>
                 {% else %}
                 <p class="text-xs text-slate-400 text-center py-6 col-span-full">Nessun intervento in programma.</p>
@@ -229,6 +245,69 @@
         </div>
     </div>
 
+    <!-- MODALE DETTAGLIO EVENTO (click sul calendario) -->
+    <div id="detail-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex justify-center items-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-3 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-start gap-3 border-b pb-2">
+                <h3 id="detail-title" class="text-base font-bold text-slate-900 break-words"></h3>
+                <button type="button" onclick="closeDetailModal()" class="text-slate-400 hover:text-slate-700 text-lg leading-none">✕</button>
+            </div>
+            <div class="text-sm text-slate-700 space-y-1.5">
+                <p><strong>Tipologia:</strong> <span id="detail-tipologia"></span></p>
+                <p><strong>Inizio:</strong> <span id="detail-start"></span></p>
+                <p id="detail-end-row"><strong>Fine:</strong> <span id="detail-end"></span></p>
+                <p><strong>Responsabile:</strong> <span id="detail-resp"></span></p>
+                <p><strong>Operai:</strong> <span id="detail-operai"></span></p>
+                <p><strong>Note:</strong> <span id="detail-note" class="whitespace-pre-line"></span></p>
+            </div>
+            <div id="detail-actions" class="hidden flex justify-end gap-2 pt-3 border-t">
+                <form id="detail-delete-form" method="POST" action="" onsubmit="return confirm('Eliminare?');">
+                    <button type="submit" class="px-4 py-2 text-xs font-semibold text-rose-600 bg-rose-50 rounded-lg">Elimina</button>
+                </form>
+                <button type="button" id="detail-edit-btn" class="px-4 py-2 text-xs font-semibold text-white bg-blue-600 rounded-lg">✏️ Modifica</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODALE MODIFICA EVENTO -->
+    <div id="edit-event-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex justify-center items-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b pb-2">
+                <h3 class="text-base font-bold text-slate-900">✏️ Modifica Intervento</h3>
+                <button type="button" onclick="closeEditModal()" class="text-slate-400 hover:text-slate-700 text-lg leading-none">✕</button>
+            </div>
+            <form id="edit-event-form" method="POST" action="" class="space-y-4">
+                <div><label class="block text-xs font-semibold text-slate-600 mb-1">Titolo / Cantiere</label><input type="text" id="edit-ev-title" name="title" required class="w-full text-sm border border-slate-300 rounded-lg p-2.5"></div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Tipologia</label>
+                    <select name="tipologia" id="edit-ev-tipologia" class="w-full text-sm border border-slate-300 rounded-lg p-2.5">
+                        {% if current_user.username == 'lena' %}
+                        <option value="Assenza / Ferie">Assenza / Ferie</option>
+                        <option value="Malattia">Malattia</option>
+                        {% else %}
+                        {% for t in tipologie %}<option value="{{ t.nome }}">{{ t.nome }}</option>{% endfor %}
+                        {% endif %}
+                    </select>
+                </div>
+                <div class="grid grid-cols-1 gap-3">
+                    <div><label class="block text-xs font-semibold text-slate-600 mb-1">Inizio</label><input type="datetime-local" id="edit-ev-start" name="start_time" lang="it" required class="w-full text-sm border border-slate-300 rounded-lg p-2"></div>
+                    <div><label class="block text-xs font-semibold text-slate-600 mb-1">Fine (Opzionale)</label><input type="datetime-local" id="edit-ev-end" name="end_time" lang="it" class="w-full text-sm border border-slate-300 rounded-lg p-2"></div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Operai Coinvolti</label>
+                    <div class="space-y-1.5 max-h-36 overflow-y-auto border border-slate-200 p-2.5 rounded-lg bg-slate-50">
+                        {% for op in operai %}<label class="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" class="edit-ev-operaio" name="operai" value="{{ op.nome }}"><span>{{ op.nome }}</span></label>{% endfor %}
+                    </div>
+                </div>
+                <div><label class="block text-xs font-semibold text-slate-600 mb-1">Note</label><textarea id="edit-ev-desc" name="description" rows="3" class="w-full text-sm border border-slate-300 rounded-lg p-2.5"></textarea></div>
+                <div class="flex justify-end gap-2 pt-3 border-t">
+                    <button type="button" onclick="closeEditModal()" class="px-4 py-2 text-xs bg-slate-100 rounded-lg">Annulla</button>
+                    <button type="submit" class="px-4 py-2 text-xs text-white bg-blue-600 rounded-lg">Salva Modifiche</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- SCRIPT -->
     <script>
         function openPasswordModal() {
@@ -290,23 +369,122 @@
             document.getElementById('delete-tipologia-modal').classList.remove('hidden');
         }
 
+        // Dati degli eventi (serializzati in modo sicuro: apostrofi, virgolette e a-capo non rompono il JS)
+        var EVENTI = {
+            {% for ev in events %}
+            {{ ev.id }}: {
+                id: {{ ev.id }},
+                title: {{ ev.title|tojson }},
+                tipologia: {{ (ev.tipologia or '')|tojson }},
+                start: {{ ev.start_time.strftime('%Y-%m-%dT%H:%M')|tojson }},
+                end: {{ (ev.end_time.strftime('%Y-%m-%dT%H:%M') if ev.end_time else '')|tojson }},
+                operai: {{ (ev.operai or '')|tojson }},
+                description: {{ (ev.description or '')|tojson }},
+                responsabile: {{ (ev.owner.username if ev.owner else '-')|tojson }},
+                canEdit: {{ 'true' if (current_user.role == 'admin' or current_user.username == 'admin' or ev.user_id == current_user.id) else 'false' }}
+            },
+            {% endfor %}
+        };
+
+        function fmtDT(s) {
+            if (!s) return '';
+            var p = s.split('T'), d = p[0].split('-');
+            return d[2] + '/' + d[1] + '/' + d[0] + ' ' + (p[1] || '');
+        }
+
+        function openDetailModal(id) {
+            var ev = EVENTI[id];
+            if (!ev) return;
+            document.getElementById('detail-title').textContent = ev.title;
+            document.getElementById('detail-tipologia').textContent = ev.tipologia;
+            document.getElementById('detail-start').textContent = fmtDT(ev.start);
+            document.getElementById('detail-end').textContent = fmtDT(ev.end);
+            document.getElementById('detail-end-row').classList.toggle('hidden', !ev.end || ev.end === ev.start);
+            document.getElementById('detail-resp').textContent = ev.responsabile;
+            document.getElementById('detail-operai').textContent = ev.operai || 'Nessuno';
+            document.getElementById('detail-note').textContent = ev.description || 'Nessuna';
+            var actions = document.getElementById('detail-actions');
+            actions.classList.toggle('hidden', !ev.canEdit);
+            if (ev.canEdit) {
+                document.getElementById('detail-delete-form').action = '/events/delete/' + ev.id;
+                document.getElementById('detail-edit-btn').onclick = function() {
+                    closeDetailModal();
+                    openEditModal(ev.id);
+                };
+            }
+            document.getElementById('detail-modal').classList.remove('hidden');
+        }
+        function closeDetailModal() {
+            document.getElementById('detail-modal').classList.add('hidden');
+        }
+
+        function openEditModal(id) {
+            var ev = EVENTI[id];
+            if (!ev || !ev.canEdit) return;
+            document.getElementById('edit-event-form').action = '/events/edit/' + ev.id;
+            document.getElementById('edit-ev-title').value = ev.title;
+            document.getElementById('edit-ev-start').value = ev.start;
+            document.getElementById('edit-ev-end').value = ev.end;
+            document.getElementById('edit-ev-desc').value = ev.description;
+
+            var sel = document.getElementById('edit-ev-tipologia');
+            var found = Array.prototype.some.call(sel.options, function(o) { return o.value === ev.tipologia; });
+            if (!found && ev.tipologia) {   // tipologia non più in elenco: la aggiungo per non perderla
+                var opt = document.createElement('option');
+                opt.value = ev.tipologia; opt.textContent = ev.tipologia;
+                sel.appendChild(opt);
+            }
+            sel.value = ev.tipologia;
+
+            var selezionati = ev.operai.split(',').map(function(s) { return s.trim(); });
+            document.querySelectorAll('.edit-ev-operaio').forEach(function(cb) {
+                cb.checked = selezionati.indexOf(cb.value) !== -1;
+            });
+            document.getElementById('edit-event-modal').classList.remove('hidden');
+        }
+        function closeEditModal() {
+            document.getElementById('edit-event-modal').classList.add('hidden');
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
+            var mq = window.matchMedia('(max-width: 640px)');
+            function toolbarFor(isMobile) {
+                return isMobile
+                    ? { left: 'prev,next today', center: 'title', right: 'dayGridMonth,listWeek' }
+                    : { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,listWeek' };
+            }
+
             var calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
                 locale: 'it',
-                initialView: 'dayGridMonth',
-                headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,listWeek' },
+                initialView: mq.matches ? 'listWeek' : 'dayGridMonth',
+                headerToolbar: toolbarFor(mq.matches),
+                height: 'auto',
+                dayMaxEvents: true,
                 events: [
                     {% for ev in events %}
                     {
-                        title: "{{ ev.title }} ({{ ev.tipologia }})",
-                        start: "{{ ev.start_time.isoformat() }}",
-                        {% if ev.end_time %}end: "{{ ev.end_time.isoformat() }}",{% endif %}
-                        color: "{% if 'assenza' in ev.tipologia.lower() %}#dc2626{% else %}{{ ev.owner.color if ev.owner else '#3b82f6' }}{% endif %}"
+                        id: {{ ev.id|string|tojson }},
+                        title: {{ (ev.title ~ ' (' ~ ev.tipologia ~ ')')|tojson }},
+                        start: {{ ev.start_time.isoformat()|tojson }},
+                        {% if ev.end_time %}end: {{ ev.end_time.isoformat()|tojson }},{% endif %}
+                        color: "{% if 'assenza' in ev.tipologia.lower() or 'ferie' in ev.tipologia.lower() or 'malattia' in ev.tipologia.lower() %}#dc2626{% else %}{{ ev.owner.color if ev.owner else '#3b82f6' }}{% endif %}"
                     },
                     {% endfor %}
-                ]
+                ],
+                // Stesso comportamento su desktop e mobile: click/tap -> scheda dettaglio (con Modifica/Elimina se permesso)
+                eventClick: function(info) {
+                    info.jsEvent.preventDefault();
+                    openDetailModal(info.event.id);
+                }
             });
             calendar.render();
+
+            function onBreakpointChange(e) {
+                calendar.setOption('headerToolbar', toolbarFor(e.matches));
+                if (e.matches && calendar.view.type === 'timeGridWeek') calendar.changeView('listWeek');
+            }
+            if (mq.addEventListener) mq.addEventListener('change', onBreakpointChange);
+            else if (mq.addListener) mq.addListener(onBreakpointChange);
         });
     </script>
 </body>
